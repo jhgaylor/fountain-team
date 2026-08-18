@@ -21,7 +21,7 @@ another site's API is a CORS request. Set on the server:
 
 ```
 API_CORS_ORIGINS=http://localhost:5173        # dev
-API_CORS_ORIGINS=https://team.example.com     # wherever you host the build
+API_CORS_ORIGINS=https://jakegaylor.com       # wherever you host the build
 ```
 
 That switch is off by default and only ever admits a presented bearer key —
@@ -38,8 +38,9 @@ S3 bucket). The only build-time knob is `VITE_BASE`, the path the files are
 served under (default `/`); the Fountain URL is entered in the app.
 
 This repo deploys itself to GitHub Pages on every push to `main`
-(`.github/workflows/pages.yml`): https://jhgaylor.github.io/fountain-team/ —
-so the origin to allow on the server is `https://jhgaylor.github.io`.
+(`.github/workflows/pages.yml`): https://jakegaylor.com/fountain-team/ (the
+Pages site sits behind that custom domain) — so the origin to allow on the
+server is `https://jakegaylor.com`.
 
 ## What it uses
 
