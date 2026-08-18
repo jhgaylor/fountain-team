@@ -3,6 +3,7 @@ import { FountainClient, describeError } from "./api/client";
 import type { LogEvent, TeamEvent, Teammate, Turn } from "./api/types";
 import { clearSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import { SettingsScreen } from "./components/Settings";
+import { completeLoginIfCallback, revoke } from "./lib/oauth";
 import { Roster } from "./components/Roster";
 import { Thread } from "./components/Thread";
 import { AddDialog } from "./components/AddDialog";
@@ -19,17 +20,50 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(() => loadSettings());
   const [editingSettings, setEditingSettings] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(() => /[?&](code|error)=/.test(window.location.search));
+  const [oauthError, setOauthError] = useState<string | null>(null);
+
+  // Finish an in-progress "Sign in with Fountain" before rendering anything.
+  useEffect(() => {
+    completeLoginIfCallback()
+      .then(async (result) => {
+        if (!result) return;
+        const s: Settings = { baseUrl: result.baseUrl, apiKey: result.apiKey, via: "oauth" };
+        try {
+          const me = await new FountainClient(s).me();
+          saveSettings(s);
+          setSettings(s);
+          setEmail(me.email);
+        } catch {
+          setOauthError("Signed in, but that Fountain could not be reached.");
+        }
+      })
+      .catch((err) => setOauthError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setOauthBusy(false));
+  }, []);
+
+  if (oauthBusy) {
+    return (
+      <div className="settings">
+        <div className="settings-card">
+          <h1>Signing in…</h1>
+        </div>
+      </div>
+    );
+  }
 
   if (!settings || editingSettings) {
     return (
       <SettingsScreen
         initial={settings}
+        error={oauthError}
         onCancel={settings ? () => setEditingSettings(false) : undefined}
         onConnected={(s, who) => {
           saveSettings(s);
           setSettings(s);
           setEmail(who);
           setEditingSettings(false);
+          setOauthError(null);
         }}
       />
     );
@@ -41,6 +75,7 @@ export function App() {
       email={email}
       onSettings={() => setEditingSettings(true)}
       onSignOut={() => {
+        if (settings.via === "oauth") void revoke(settings.baseUrl, settings.apiKey);
         clearSettings();
         setSettings(null);
       }}
@@ -48,7 +83,7 @@ export function App() {
   );
 }
 
-function Team({ settings, onSettings }: { settings: Settings; email: string | null; onSettings: () => void; onSignOut: () => void }) {
+function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: string | null; onSettings: () => void; onSignOut: () => void }) {
   const client = useMemo(() => new FountainClient(settings), [settings]);
   const [team, setTeam] = useState<Teammate[]>([]);
   const [teamError, setTeamError] = useState<string | null>(null);
@@ -278,6 +313,7 @@ function Team({ settings, onSettings }: { settings: Settings; email: string | nu
         onSelect={select}
         onAdd={() => setAdding(true)}
         onSettings={onSettings}
+        onSignOut={onSignOut}
         connected={connected}
       />
       {selected ? (

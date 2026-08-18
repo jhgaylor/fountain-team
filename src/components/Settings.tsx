@@ -1,25 +1,29 @@
 import { useState, type FormEvent } from "react";
 import { FountainClient, describeError } from "../api/client";
 import { normalizeBaseUrl, type Settings } from "../lib/settings";
+import { beginLogin } from "../lib/oauth";
 
 interface Props {
   initial: Settings | null;
+  error?: string | null;
   onConnected: (settings: Settings, email: string) => void;
   onCancel?: () => void;
 }
 
-/** Where is Fountain, and which key. Verified with `GET /api/auth/me` before it is kept. */
-export function SettingsScreen({ initial, onConnected, onCancel }: Props) {
+/** Where is Fountain, and how to authenticate — sign in, or paste a key. */
+export function SettingsScreen({ initial, error: initialError, onConnected, onCancel }: Props) {
   const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? "https://fountain.inevitable.fyi");
   const [apiKey, setApiKey] = useState(initial?.apiKey ?? "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
+  const [error, setError] = useState<string | null>(initialError ?? null);
+  const [showPaste, setShowPaste] = useState(!!initial?.apiKey && initial?.via !== "oauth");
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const settings: Settings = { baseUrl: normalizeBaseUrl(baseUrl), apiKey: apiKey.trim() };
+    const settings: Settings = { baseUrl: normalizeBaseUrl(baseUrl), apiKey: apiKey.trim(), via: "paste" };
     try {
       const me = await new FountainClient(settings).me();
       onConnected(settings, me.email);
@@ -49,21 +53,51 @@ export function SettingsScreen({ initial, onConnected, onCancel }: Props) {
             autoComplete="url"
           />
         </label>
-        <label>
-          API key
-          <input
-            type="password"
-            required
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="fnt_…"
-            autoComplete="off"
-          />
-        </label>
+
+        <button
+          type="button"
+          className="oauth-btn"
+          disabled={signingIn || !baseUrl.trim()}
+          onClick={async () => {
+            setError(null);
+            setSigningIn(true);
+            try {
+              await beginLogin(baseUrl);
+            } catch (err) {
+              setError(describeError(err));
+              setSigningIn(false);
+            }
+          }}
+        >
+          {signingIn ? "Redirecting…" : "Sign in with Fountain"}
+        </button>
         <p className="muted small">
-          Make one under <em>Account → API keys</em> in Fountain. The server must list this site
-          in <code>API_CORS_ORIGINS</code>.
+          Opens Fountain to approve access; you come back signed in. Nothing to copy.
         </p>
+
+        {!showPaste ? (
+          <button type="button" className="linklike" onClick={() => setShowPaste(true)}>
+            or paste an API key
+          </button>
+        ) : (
+          <>
+            <label>
+              API key
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="ftn_…"
+                autoComplete="off"
+              />
+            </label>
+            <p className="muted small">
+              Make one under <em>Account → API keys</em>. The server must list this site in{" "}
+              <code>API_CORS_ORIGINS</code>.
+            </p>
+          </>
+        )}
+
         {error && <div className="error">{error}</div>}
         <div className="row end">
           {onCancel && (
@@ -71,8 +105,8 @@ export function SettingsScreen({ initial, onConnected, onCancel }: Props) {
               Cancel
             </button>
           )}
-          <button type="submit" disabled={busy}>
-            {busy ? "Connecting…" : "Connect"}
+          <button type="submit" disabled={busy || !showPaste || !apiKey.trim()}>
+            {busy ? "Connecting…" : "Connect with key"}
           </button>
         </div>
       </form>

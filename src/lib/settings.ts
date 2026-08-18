@@ -2,6 +2,8 @@
 export interface Settings {
   baseUrl: string;
   apiKey: string;
+  /** How the key was obtained — an OAuth key is revoked on sign-out. */
+  via?: "paste" | "oauth";
 }
 
 const KEY = "fountain-team.settings";
@@ -12,14 +14,14 @@ export function loadSettings(): Settings | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     if (typeof parsed.baseUrl !== "string" || typeof parsed.apiKey !== "string") return null;
-    return { baseUrl: normalizeBaseUrl(parsed.baseUrl), apiKey: parsed.apiKey };
+    return { baseUrl: normalizeBaseUrl(parsed.baseUrl), apiKey: parsed.apiKey, via: parsed.via === "oauth" ? "oauth" : "paste" };
   } catch {
     return null;
   }
 }
 
 export function saveSettings(s: Settings): void {
-  localStorage.setItem(KEY, JSON.stringify({ baseUrl: normalizeBaseUrl(s.baseUrl), apiKey: s.apiKey }));
+  localStorage.setItem(KEY, JSON.stringify({ baseUrl: normalizeBaseUrl(s.baseUrl), apiKey: s.apiKey, via: s.via ?? "paste" }));
 }
 
 export function clearSettings(): void {
