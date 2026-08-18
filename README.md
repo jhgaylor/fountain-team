@@ -34,8 +34,12 @@ bun run build      # dist/ — static, host it anywhere
 ```
 
 Any static host works (Cloudflare Pages, GitHub Pages, an nginx container, an
-S3 bucket). There is nothing to configure at build time: the Fountain URL is
-entered in the app.
+S3 bucket). The only build-time knob is `VITE_BASE`, the path the files are
+served under (default `/`); the Fountain URL is entered in the app.
+
+This repo deploys itself to GitHub Pages on every push to `main`
+(`.github/workflows/pages.yml`): https://jhgaylor.github.io/fountain-team/ —
+so the origin to allow on the server is `https://jhgaylor.github.io`.
 
 ## What it uses
 
