@@ -9,10 +9,11 @@ interface Props {
   onSelect: (agentId: string) => void;
   onAdd: () => void;
   onSettings: () => void;
+  onSignOut: () => void;
   connected: boolean;
 }
 
-export function Roster({ client, teammates, selectedId, onSelect, onAdd, onSettings, connected }: Props) {
+export function Roster({ client, teammates, selectedId, onSelect, onAdd, onSettings, onSignOut, connected }: Props) {
   return (
     <aside className="roster">
       <header className="roster-header">
@@ -23,6 +24,9 @@ export function Roster({ client, teammates, selectedId, onSelect, onAdd, onSetti
         <div className="row">
           <button className="icon" onClick={onSettings} aria-label="Settings" title="Settings">
             ⚙
+          </button>
+          <button className="icon" onClick={onSignOut} aria-label="Sign out" title="Sign out">
+            ⏻
           </button>
           <button className="icon primary" onClick={onAdd} aria-label="Add a teammate" title="Add a teammate">
             +

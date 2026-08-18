@@ -13,8 +13,16 @@ bun install
 bun run dev        # http://localhost:5173
 ```
 
-On first load it asks for your Fountain URL and an API key (make one under
-*Account → API keys*). Both stay in this browser's `localStorage`.
+On first load, enter your Fountain URL and **Sign in with Fountain** — it opens
+Fountain to approve access and brings you back signed in, nothing to copy
+(OAuth 2.0 authorization code + PKCE; the token is an API key that lists and
+revokes under Account → API keys, and signing out revokes it). Pasting an API
+key still works as a fallback. Everything stays in this browser's
+`localStorage`.
+
+For "Sign in with Fountain" the server must register this app in
+`OAUTH_CLIENTS` (client id `fountain-team`, redirect URI = where you host it)
+as well as `API_CORS_ORIGINS`.
 
 The Fountain server has to allow the browser origin — a browser calling
 another site's API is a CORS request. Set on the server:
