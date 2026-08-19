@@ -37,15 +37,15 @@ cookies never cross origins — so turning it on for your own client is safe.
 
 ## What it does
 
-**Adding a teammate is a name, a brain, and one line** (after Grok Bot /
-OpenMausBot): the name is suggested, the brain is a single picker over the
-catalog (Claude Sonnet by default, providers without an inference credential
-marked), the line becomes their description and the start of their
-instructions, and a generated avatar is attached when the account can make
-one. Everything else Fountain can configure on an agent — runtime (follows
-the brain), environment, vault, skills, MCP servers, sandbox provider — is
-defaulted by this app; tune it in Fountain when you want to. "Add an agent
-you already have" is the second tab.
+**Adding a teammate is one click** (after Grok Bot / OpenMausBot): **+**
+gives them a name from a list, Claude Sonnet as the brain (or the first
+provider the account holds a key for), a short system prompt that names
+them, and a generated face that arrives a moment later. Nothing to fill in.
+Rename from the thread header; the brain and "what they do" are editable in
+their profile (click the title); everything else Fountain can configure —
+environment, vault, skills, MCP servers, sandbox provider — is defaulted and
+lives in Fountain when you want it. "Add an agent you already have" (team
+menu ⋯) is the advanced path.
 
 Beyond the roster and the thread — the things a messaging app is expected to
 do, each on the public API:
@@ -141,7 +141,8 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | In the app | API |
 |---|---|
 | Roster, presence, previews, unread | `GET /api/team` |
-| Add — new teammate | `GET /api/catalog` + `/api/account/inference-credentials` for the brain picker, `POST /api/agents`, `POST /api/avatars/generate` + `PUT /api/agents/:id/avatar`, then `POST /api/team` |
+| Add (+) | `GET /api/catalog` + `/api/account/inference-credentials` + `/api/agents` (names in use), `POST /api/agents`, `POST /api/team`; then `POST /api/avatars/generate` + `PUT /api/agents/:id/avatar` in the background |
+| Profile edits | `PUT /api/agents/:id` (brain, what they do) |
 | Add — an agent you already have | `POST /api/team`, with `GET /api/agents`, `/api/environments`, `/api/vaults` for the picker |
 | Send (text + images) | `POST /api/team/:agent_id/messages`; `GET /api/conversations/:id/turns/:turn_id/images/:pos` to show them back |
 | Thread | `GET /api/conversations/:id/turns` + `/events` |

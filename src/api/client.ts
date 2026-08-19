@@ -225,6 +225,10 @@ export class FountainClient {
     return this.json<{ data: Agent }>("POST", "/api/agents", input).then((r) => r.data);
   }
 
+  updateAgent(agentId: string, input: Partial<{ name: string; model: string; runtime: string; description: string; system: string }>): Promise<Agent> {
+    return this.json<{ data: Agent }>("PUT", `/api/agents/${agentId}`, input).then((r) => r.data);
+  }
+
   generateAvatar(base: string, mood: string): Promise<{ data: string; media_type: string }> {
     return this.json<{ data: { data: string; media_type: string } }>("POST", "/api/avatars/generate", { base, mood }).then((r) => r.data);
   }

@@ -48,6 +48,8 @@ interface Props {
   onFocused: () => void;
   activityOpen: boolean;
   onActivityChange: (open: boolean) => void;
+  /** the agent behind this teammate changed (brain, persona): re-list */
+  onAgentChanged: () => void;
   fountainUrl: string;
 }
 
@@ -73,6 +75,7 @@ export function Thread({
   onFocused,
   activityOpen,
   onActivityChange,
+  onAgentChanged,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
@@ -432,7 +435,7 @@ export function Thread({
         </div>
       </header>
 
-      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} fountainUrl={fountainUrl} />}
+      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} onAgentChanged={onAgentChanged} fountainUrl={fountainUrl} />}
       {treeOpen && spawned.length > 0 && (
         <div className="spawned">
           <div className="spawned-head small muted">Started by {teammate.name} — sub-conversations in this thread's spawn tree</div>

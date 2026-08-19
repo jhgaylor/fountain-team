@@ -386,3 +386,6 @@ button.secondary.active { background: var(--bg-2); border-color: var(--text-2); 
 .add-avatar:disabled .redo { display: none; }
 .add-fineprint { margin: 0; }
 .add-fineprint .linkish, p .linkish { background: transparent; border: 0; padding: 0; color: var(--brand); font: inherit; cursor: pointer; text-decoration: underline; }
+.profile-field { display: flex; flex-direction: column; gap: 4px; }
+.profile-field .row.end { margin-top: 4px; }
+button.icon.primary.busy { opacity: 0.7; }
