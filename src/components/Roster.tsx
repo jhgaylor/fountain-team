@@ -19,6 +19,8 @@ interface Props {
   notifyPermission: NotifyPermission;
   onSelect: (agentId: string) => void;
   onAdd: () => void;
+  onAddExisting: () => void;
+  adding: boolean;
   onSettings: () => void;
   onSignOut: () => void;
   onToggleNotify: () => void;
@@ -46,6 +48,8 @@ export function Roster({
   notifyPermission,
   onSelect,
   onAdd,
+  onAddExisting,
+  adding,
   onSettings,
   onSignOut,
   onToggleNotify,
@@ -103,8 +107,8 @@ export function Roster({
           >
             ⋯
           </button>
-          <button className="icon primary" onClick={onAdd} aria-label="Add a teammate" title="Add a teammate">
-            +
+          <button className={`icon primary ${adding ? "busy" : ""}`} onClick={onAdd} disabled={adding} aria-label="Add a teammate" title="Add a teammate — a name and a brain are picked for you; change anything later">
+            {adding ? "…" : "+"}
           </button>
         </div>
       </header>
@@ -116,7 +120,9 @@ export function Roster({
               Add an agent and it gets its own computer and one ongoing conversation with you — like a
               coworker in your messages.
             </p>
-            <button onClick={onAdd}>Add a teammate</button>
+            <button onClick={onAdd} disabled={adding}>
+              {adding ? "Adding…" : "Add a teammate"}
+            </button>
           </div>
         )}
         <ul>
@@ -142,7 +148,8 @@ export function Roster({
           label="Team menu"
           onClose={() => setTeamMenu(null)}
           items={[
-            { label: "⏰  Routines", onSelect: onRoutines },
+            { label: "＋  Add an agent you already have…", onSelect: onAddExisting },
+            { label: "⏰  Routines", onSelect: onRoutines, divider: true },
             { label: "🖥  Runners", onSelect: onRunners },
             { label: "⤓  Export team as a manifest", onSelect: onExport },
             { label: "⌨  Keyboard shortcuts", onSelect: onShortcuts },

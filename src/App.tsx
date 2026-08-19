@@ -7,6 +7,7 @@ import { completeLoginIfCallback, revoke } from "./lib/oauth";
 import { Roster, type RowAction } from "./components/Roster";
 import { Thread } from "./components/Thread";
 import { AddDialog } from "./components/AddDialog";
+import { addInstantTeammate } from "./lib/instant";
 import { Routines } from "./components/Routines";
 import { Palette, type PaletteChoice } from "./components/Palette";
 import { teamManifest } from "./lib/manifest";
@@ -116,6 +117,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [threadLoading, setThreadLoading] = useState(false);
   const [loadedConvId, setLoadedConvId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [instantBusy, setInstantBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
@@ -540,6 +542,22 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     [client, toast],
   );
 
+  /** "+": a teammate right now — random name, default brain, avatar to follow. */
+  const addInstant = useCallback(async () => {
+    if (instantBusy) return;
+    setInstantBusy(true);
+    try {
+      const { agentId, name } = await addInstantTeammate(client, { onAvatar: () => void refreshTeam() });
+      await refreshTeam();
+      select(agentId);
+      toast(`${name} joined — rename them from the header; brain and "what they do" are in their profile`);
+    } catch (err) {
+      toast(describeError(err), "error");
+    } finally {
+      setInstantBusy(false);
+    }
+  }, [client, instantBusy, refreshTeam, select, toast]);
+
   // ── actions ───────────────────────────────────────────────────────────────
 
   const onSend = useCallback(
@@ -724,7 +742,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         prefs={prefs}
         notifyPermission={notifyPerm}
         onSelect={select}
-        onAdd={() => setAdding(true)}
+        onAdd={() => void addInstant()}
+        onAddExisting={() => setAdding(true)}
+        adding={instantBusy}
         onSettings={onSettings}
         onSignOut={onSignOut}
         onToggleNotify={() => void onToggleNotify()}
@@ -771,6 +791,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onRenamingChange={setRenaming}
           focusTurnId={focusTurnId}
           onFocused={() => setFocusTurnId(null)}
+          onAgentChanged={() => void refreshTeam()}
           activityOpen={prefs.activity}
           onActivityChange={(open) => updatePrefs((p) => ({ ...p, activity: open }))}
           fountainUrl={client.baseUrl}
@@ -778,7 +799,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       ) : !teamLoaded ? (
         <section className="thread placeholder" aria-busy="true" />
       ) : team.length === 0 ? (
-        <Onboarding onAdd={() => setAdding(true)} error={teamError} />
+        <Onboarding onAdd={() => void addInstant()} onAddExisting={() => setAdding(true)} busy={instantBusy} error={teamError} />
       ) : (
         <section className="thread placeholder">
           <div className="centered muted">{teamError ? teamError : "Pick a teammate to open the conversation."}</div>

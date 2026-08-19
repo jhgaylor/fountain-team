@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FountainClient } from "../api/client";
 import { describeError } from "../api/client";
 import type { Agent, Environment, Teammate, Vault } from "../api/types";
 import { formatUsage } from "../lib/format";
+import { brainsFrom, labelFor, personaPrompt, type Brain, type Catalog } from "../lib/brain";
 import { Avatar } from "./Avatar";
 import { Markdown } from "./Markdown";
 
@@ -12,8 +13,24 @@ import { Markdown } from "./Markdown";
  * MCP servers, environment, vault — and the conversation that is their
  * thread. Read-only; the agent is edited in Fountain.
  */
-export function Profile({ client, teammate, onClose, fountainUrl }: { client: FountainClient; teammate: Teammate; onClose: () => void; fountainUrl: string }) {
+export function Profile({
+  client,
+  teammate,
+  onClose,
+  onAgentChanged,
+  fountainUrl,
+}: {
+  client: FountainClient;
+  teammate: Teammate;
+  onClose: () => void;
+  onAgentChanged?: () => void;
+  fountainUrl: string;
+}) {
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [creds, setCreds] = useState<Record<string, boolean>>({});
+  const [persona, setPersona] = useState<string | null>(null);
+  const [saving, setSaving] = useState<"brain" | "persona" | null>(null);
   const [envs, setEnvs] = useState<Environment[]>([]);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -21,12 +38,20 @@ export function Profile({ client, teammate, onClose, fountainUrl }: { client: Fo
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([client.getAgent(teammate.agent_id), client.listEnvironments().catch(() => []), client.listVaults().catch(() => [])])
-      .then(([a, e, v]) => {
+    Promise.all([
+      client.getAgent(teammate.agent_id),
+      client.listEnvironments().catch(() => []),
+      client.listVaults().catch(() => []),
+      client.getCatalog().catch(() => null),
+      client.inferenceCredentials().catch(() => ({}) as Record<string, boolean>),
+    ])
+      .then(([a, e, v, cat, cr]) => {
         if (cancelled) return;
         setAgent(a);
         setEnvs(e);
         setVaults(v);
+        setCatalog(cat);
+        setCreds(cr);
       })
       .catch((err) => !cancelled && setError(describeError(err)));
     return () => {
@@ -43,6 +68,36 @@ export function Profile({ client, teammate, onClose, fountainUrl }: { client: Fo
   const envName = (id: string | null) => (id ? (envs.find((e) => e.id === id)?.name ?? id.slice(0, 8)) : null);
   const vaultName = (id: string | null) => (id ? (vaults.find((v) => v.id === id)?.name ?? id.slice(0, 8)) : null);
   const a = agent ?? teammate.agent;
+  const brains = useMemo(() => (catalog ? brainsFrom(catalog, creds) : []), [catalog, creds]);
+  const brainKnown = brains.some((b) => b.model === a.model);
+
+  const changeBrain = async (model: string) => {
+    const b: Brain | undefined = brains.find((x) => x.model === model);
+    if (!b || !agent) return;
+    setSaving("brain");
+    try {
+      setAgent(await client.updateAgent(agent.id, { model: b.model, runtime: b.runtime }));
+      onAgentChanged?.();
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const savePersona = async () => {
+    if (!agent || persona === null) return;
+    setSaving("persona");
+    try {
+      setAgent(await client.updateAgent(agent.id, { description: persona.trim(), system: personaPrompt(teammate.name, persona) }));
+      setPersona(null);
+      onAgentChanged?.();
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setSaving(null);
+    }
+  };
   const skills = (a.skills ?? []) as Array<Record<string, unknown>>;
   const mcp = Object.entries(a.mcp_servers ?? {}) as Array<[string, Record<string, unknown>]>;
   const usedEnv = conv.environment_id ?? a.environment_id;
@@ -67,7 +122,43 @@ export function Profile({ client, teammate, onClose, fountainUrl }: { client: Fo
           </button>
         </header>
         {error && <div className="error">{error}</div>}
-        {a.description && <p className="profile-desc">{a.description}</p>}
+
+        <label className="profile-field">
+          Brain
+          <select value={brainKnown ? a.model : "__current"} disabled={!agent || !brains.length || saving === "brain"} onChange={(e) => void changeBrain(e.target.value)}>
+            {!brainKnown && <option value="__current">{labelFor(a.model)} (current)</option>}
+            {brains.map((b) => (
+              <option key={b.model} value={b.model}>
+                {b.label}
+                {b.available ? "" : " — no key on the account"}
+              </option>
+            ))}
+          </select>
+          <span className="hint">The runtime follows the brain. A change applies from their next turn; the conversation continues.</span>
+        </label>
+
+        <label className="profile-field">
+          What they do
+          <textarea
+            rows={2}
+            value={persona ?? a.description ?? ""}
+            placeholder="e.g. reviews pull requests on the api repo and keeps the changelog honest"
+            onChange={(e) => setPersona(e.target.value)}
+            disabled={!agent || saving === "persona"}
+            maxLength={600}
+          />
+          {persona !== null && persona !== (a.description ?? "") && (
+            <div className="row end">
+              <button type="button" className="secondary small" onClick={() => setPersona(null)} disabled={saving === "persona"}>
+                Cancel
+              </button>
+              <button type="button" className="small" onClick={() => void savePersona()} disabled={saving === "persona"}>
+                {saving === "persona" ? "Saving…" : "Save"}
+              </button>
+            </div>
+          )}
+          <span className="hint">One line is plenty — it becomes their description and the start of their instructions.</span>
+        </label>
 
         <dl className="profile-grid">
           <dt>Computer</dt>
