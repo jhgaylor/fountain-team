@@ -172,15 +172,13 @@ export function ToolsRow({ tools }: { tools: ToolBlock[] }) {
       <ul className="activity-calls">
         {tools.map((t, i) => (
           <li key={t.id ?? i} className={`call ${t.status}`}>
-            <details>
-              <summary>
-                <span className="tool-status">{t.status === "running" ? "…" : t.status === "done" ? "✓" : "✕"}</span>
-                <span className="tool-name">{t.name}</span>
-                {t.summary && <span className="tool-summary">{t.summary}</span>}
-                {duration(t.startedAt, t.endedAt) && <span className="dur muted">{duration(t.startedAt, t.endedAt)}</span>}
-              </summary>
-              {t.output ? <pre>{t.output}</pre> : <div className="muted small">no output</div>}
-            </details>
+            <div className="call-head">
+              <span className="tool-status">{t.status === "running" ? "…" : t.status === "done" ? "✓" : "✕"}</span>
+              <span className="tool-name">{t.name}</span>
+              {t.summary && <span className="tool-summary">{t.summary}</span>}
+              {duration(t.startedAt, t.endedAt) && <span className="dur muted">{duration(t.startedAt, t.endedAt)}</span>}
+            </div>
+            {t.output ? <pre>{t.output}</pre> : <div className="muted small call-empty">{t.status === "running" ? "running…" : "no output"}</div>}
           </li>
         ))}
       </ul>

@@ -352,9 +352,10 @@ kbd { font-family: inherit; font-size: 12px; padding: 1px 6px; border: 1px solid
 .activity-tools.running .what { color: var(--text); }
 .activity-tools .dots::after { content: "…"; animation: pulse 1.2s infinite; }
 .activity-calls { list-style: none; margin: 6px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-.activity-calls .call > details > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text-2); }
-.activity-calls .call > details > summary::-webkit-details-marker { display: none; }
-.activity-calls .call.error > details > summary { color: var(--danger); }
+.activity-calls .call-head { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text-2); }
+.activity-calls .call.error .call-head { color: var(--danger); }
+.activity-calls .call-head .tool-summary { font-family: ui-monospace, Menlo, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 36ch; }
+.activity-calls .call-empty { margin: 2px 0 6px; }
 .activity-calls pre { margin: 4px 0 6px; padding: 8px 10px; border-radius: 8px; background: rgba(127,127,127,0.12); overflow: auto; max-height: 240px; font-size: 12px; white-space: pre-wrap; }
 .activity-thought { white-space: pre-wrap; color: var(--text-2); font-size: 13px; margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--border); }
 button.secondary.active { background: var(--bg-2); border-color: var(--text-2); }
