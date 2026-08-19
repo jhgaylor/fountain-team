@@ -265,12 +265,31 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     [client, refreshTeam, toast],
   );
 
+  // Provisioning makes no event this stream delivers for a conversation it
+  // only just started following, so a teammate whose computer is starting
+  // (or whose machine is off, or whose queue waits on either) is polled
+  // until the roster says otherwise.
+  useEffect(() => {
+    const waiting = team.some(
+      (t) =>
+        t.presence.state === "starting" ||
+        t.conversation.status === "pending" ||
+        (queues.get(t.agent_id)?.length && t.presence.state !== "working" && t.conversation.status !== "running"),
+    );
+    if (!waiting) return;
+    const id = window.setInterval(() => void refreshTeam(), 4000);
+    return () => window.clearInterval(id);
+  }, [team, queues, refreshTeam]);
+
   // A safety net for the event path: after any roster refresh, a free
   // teammate with a queue gets it (a reconnect can miss the turn-end event).
   useEffect(() => {
     for (const t of team) {
       if (!queues.get(t.agent_id)?.length) continue;
-      const busy = t.presence.state === "working" || t.presence.state === "starting" || t.conversation.status === "running";
+      // "starting" and "machine_offline" are not reasons to hold back: the
+      // server answers 503 if it really cannot take the turn yet, and the
+      // queue keeps it; a stale "starting" must not be the thing blocking.
+      const busy = t.presence.state === "working" || t.conversation.status === "running";
       if (!busy) void flush(t.agent_id);
     }
   }, [team, queues, flush]);
@@ -568,8 +587,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         setQueues((q) => enqueue(q, agentId, { id: newQueuedId(), text, images, at: new Date().toISOString() }));
         return "queued" as const;
       };
-      const busy =
-        selected.presence.state === "working" || selected.presence.state === "starting" || selected.conversation.status === "running";
+      // Only a turn in flight is a reason not to try: "starting" and
+      // "machine offline" are the server's call (503 → queued, below), and
+      // the roster's idea of them can be stale.
+      const busy = selected.presence.state === "working" || selected.conversation.status === "running";
       // Anything already queued goes first, so a new note joins the line.
       if (busy || queues.get(agentId)?.length) return queue();
       try {

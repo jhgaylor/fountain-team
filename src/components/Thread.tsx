@@ -80,7 +80,9 @@ export function Thread({
 }: Props) {
   const conv = teammate.conversation;
   const machineOffline = teammate.presence.state === "machine_offline";
-  const busy = machineOffline || teammate.presence.state === "working" || teammate.presence.state === "starting" || conv.status === "running";
+  // "starting" is deliberately not busy: the send is attempted and the server
+  // decides (503 → queued). A stale "starting" must not lock the composer.
+  const busy = machineOffline || teammate.presence.state === "working" || conv.status === "running";
   const runner = conv.sandbox?.runner ?? null;
   const [draft, setDraft] = useState(() => loadDraft(conv.id));
   const [images, setImages] = useState<OutgoingImage[]>([]);
