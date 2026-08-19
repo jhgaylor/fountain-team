@@ -170,6 +170,16 @@ export function Thread({
 
   // The spawn tree: what this teammate started (sub-conversations over the API).
   const [profileOpen, setProfileOpen] = useState(false);
+  // "Loading…" only after a beat: a fast load should paint the thread, not a blink of text
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoad(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSlowLoad(true), 350);
+    return () => window.clearTimeout(t);
+  }, [loading, conv.id]);
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | null>(null);
   const openActivityAt = useCallback(
     (turnId: string, index: number) => {
@@ -447,7 +457,7 @@ export function Thread({
       <div className="thread-main">
       <div className="messages-wrap">
         <div className="messages" ref={scrollRef} onScroll={onScroll}>
-          {loading && <div className="centered muted">Loading…</div>}
+          {loading && slowLoad && <div className="centered muted">Loading…</div>}
           {!loading && hidden > 0 && (
             <button className="secondary small show-earlier" onClick={showEarlier}>
               Show earlier messages ({hidden} more)
