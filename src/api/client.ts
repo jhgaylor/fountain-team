@@ -9,13 +9,16 @@ import type {
   Agent,
   Conversation,
   Environment,
+  EnvironmentSecret,
   HistoryConversation,
   LogEvent,
+  McpServer,
   Runner,
   Me,
   Schedule,
   ScheduleInput,
   SearchHit,
+  Skill,
   Teammate,
   TreeNode,
   Turn,
@@ -225,8 +228,35 @@ export class FountainClient {
     return this.json<{ data: Agent }>("POST", "/api/agents", input).then((r) => r.data);
   }
 
-  updateAgent(agentId: string, input: Partial<{ name: string; model: string; runtime: string; description: string; system: string }>): Promise<Agent> {
+  updateAgent(
+    agentId: string,
+    input: Partial<{
+      name: string;
+      model: string;
+      runtime: string;
+      description: string;
+      system: string;
+      skills: Skill[];
+      mcp_servers: Record<string, McpServer>;
+      environment_id: string | null;
+    }>,
+  ): Promise<Agent> {
     return this.json<{ data: Agent }>("PUT", `/api/agents/${agentId}`, input).then((r) => r.data);
+  }
+
+  // ── environments: where a connector's token lives ───────────────────────
+
+  createEnvironment(name: string): Promise<Environment> {
+    return this.json<{ data: Environment }>("POST", "/api/environments", { name }).then((r) => r.data);
+  }
+
+  /** Keys only — values are write-only on the API. */
+  async listEnvironmentSecrets(envId: string): Promise<EnvironmentSecret[]> {
+    return (await this.json<{ data: EnvironmentSecret[] }>("GET", `/api/environments/${envId}/secrets`)).data;
+  }
+
+  putEnvironmentSecret(envId: string, key: string, value: string): Promise<unknown> {
+    return this.json("POST", `/api/environments/${envId}/secrets`, { key, value });
   }
 
   generateAvatar(base: string, mood: string): Promise<{ data: string; media_type: string }> {

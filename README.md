@@ -41,11 +41,11 @@ cookies never cross origins — so turning it on for your own client is safe.
 gives them a name from a list, Claude Sonnet as the brain (or the first
 provider the account holds a key for), a short system prompt that names
 them, and a generated face that arrives a moment later. Nothing to fill in.
-Rename from the thread header; the brain and "what they do" are editable in
-their profile (click the title); everything else Fountain can configure —
-environment, vault, skills, MCP servers, sandbox provider — is defaulted and
-lives in Fountain when you want it. "Add an agent you already have" (team
-menu ⋯) is the advanced path.
+Rename from the thread header; everything else is in **Customize** (click the
+title): the brain, what they do, their **skills** and the **apps** they can
+use — see below. "Add an agent you already have" (team menu ⋯) is the
+advanced path for an agent built in Fountain with its own environment and
+vault.
 
 Beyond the roster and the thread — the things a messaging app is expected to
 do, each on the public API:
@@ -92,9 +92,32 @@ do, each on the public API:
   links (http/https/mailto only) — rendered from a small parser in
   `src/lib/markdown.ts` to React elements, never HTML, so nothing an agent
   writes can inject markup. Roster previews show the plain text.
-- **About a teammate** (click the thread title): the agent behind them —
-  model, runtime, description, system prompt, skills, MCP servers,
-  environment, vault, computer — and links to edit the agent in Fountain.
+- **Customize a teammate** (click the thread title) — three tabs, all
+  edited here on the agent behind them, nothing sends you to Fountain:
+  - **Profile**: the brain (one select; the runtime follows), what they do
+    (one line → description + system prompt), the computer, and the details
+    folded away.
+  - **Skills**: what they have, a searchable catalog of skills.sh
+    collections (Anthropic's document skills, Vercel's React guidelines,
+    Superpowers' engineering workflow, …) with one-click Add, any GitHub
+    repo by `owner/repo`, `@ref`, or a pasted GitHub / skills.sh link, or a
+    skill written in place (a SKILL.md, editable afterwards). Stored as the
+    agent's `skills`; installed on their computer with the skills.sh CLI.
+  - **Apps** (after OpenMausBot's connected-apps marketplace): the MCP
+    servers they can call. A catalog of hosted servers that take a token
+    (GitHub, Supabase, Neon, Render, Stripe, PostHog, Hugging Face,
+    Context7, Exa, Tavily, Firecrawl) or nothing (DeepWiki, Cloudflare /
+    Microsoft / AWS docs), plus a couple that run on the computer (Notion,
+    Brave Search) — Connect asks for the token, saves it as a secret on the
+    teammate's environment (made on the spot if they have none) and writes
+    the server with a `${VAR}` reference, so the agent never holds the
+    value. Custom server: any URL + headers, or a command + env. A
+    connected server whose `${VAR}` is missing from the environment says
+    so and offers to add it.
+
+  Skills and apps land when the teammate's computer is set up, so after a
+  change the panel offers **Restart their computer** (no confirmation when
+  nothing has happened on the thread yet; the usual one otherwise).
 - **Keyboard**: ⌘K search, Alt+↑/↓ to switch teammates, `?` for the list.
 - **Rename** a teammate (✎ by the name, or the row menu); empty resets to the
   agent's name. **History** (thread header / row menu): its previous
@@ -142,7 +165,7 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 |---|---|
 | Roster, presence, previews, unread | `GET /api/team` |
 | Add (+) | `GET /api/catalog` + `/api/account/inference-credentials` + `/api/agents` (names in use), `POST /api/agents`, `POST /api/team`; then `POST /api/avatars/generate` + `PUT /api/agents/:id/avatar` in the background |
-| Profile edits | `PUT /api/agents/:id` (brain, what they do) |
+| Customize — profile, skills, apps | `PUT /api/agents/:id` (brain, what they do, `skills`, `mcp_servers`, `environment_id`); tokens via `POST /api/environments` + `GET/POST /api/environments/:id/secrets` |
 | Add — an agent you already have | `POST /api/team`, with `GET /api/agents`, `/api/environments`, `/api/vaults` for the picker |
 | Send (text + images) | `POST /api/team/:agent_id/messages`; `GET /api/conversations/:id/turns/:turn_id/images/:pos` to show them back |
 | Thread | `GET /api/conversations/:id/turns` + `/events` |
