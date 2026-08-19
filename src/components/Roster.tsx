@@ -7,7 +7,18 @@ import { Avatar } from "./Avatar";
 import { Menu } from "./Menu";
 import { markdownToText } from "../lib/markdown";
 
-export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove" | "rename" | "history" | "retire";
+export type RowAction =
+  | "pin"
+  | "mute"
+  | "unread"
+  | "read"
+  | "copy-id"
+  | "open"
+  | "remove"
+  | "rename"
+  | "history"
+  | "retire"
+  | "retire-new";
 
 interface Props {
   client: FountainClient;
@@ -290,7 +301,7 @@ function RowMenu({
   const unread = teammate.unread || prefs.unread.includes(teammate.agent_id);
   // keep the menu on screen
   const left = Math.min(x, window.innerWidth - 240);
-  const top = Math.min(y, window.innerHeight - 260);
+  const top = Math.min(y, window.innerHeight - 300);
   return (
     <div className="menu" ref={ref} style={{ left, top }} role="menu" aria-label={`Actions for ${teammate.name}`}>
       <button role="menuitem" onClick={() => onAction("pin")}>
@@ -309,8 +320,11 @@ function RowMenu({
       <button role="menuitem" onClick={() => onAction("history")}>
         History…
       </button>
-      <button role="menuitem" onClick={() => onAction("retire")} title="End this conversation and its computer; the next message starts a fresh one. The thread stays in History.">
+      <button role="menuitem" onClick={() => onAction("retire")} title="Retire this conversation and start a new one on the same computer — files and tools stay, the context is fresh. The thread stays in History.">
         Start a fresh thread…
+      </button>
+      <button role="menuitem" onClick={() => onAction("retire-new")} title="End this conversation and shut down its computer; the next message starts a fresh one on a new computer. The thread stays in History.">
+        Fresh thread on a new computer…
       </button>
       <button role="menuitem" onClick={() => onAction("open")}>
         Open in Fountain

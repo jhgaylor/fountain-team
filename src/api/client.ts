@@ -82,6 +82,17 @@ export class FountainClient {
     return (await this.json<{ data: HistoryConversation[] }>("GET", `/api/team/${agentId}/conversations`)).data;
   }
 
+  /**
+   * A fresh conversation on the teammate's current computer: the current one is retired (it
+   * stays in History) and the new one takes over the sandbox — the next message starts a clean
+   * runtime session on the same disk. 400 `conversation_busy` mid-turn, 503 `provisioning`
+   * while the computer is starting; a gone computer is replaced by a new one.
+   */
+  async freshConversation(agentId: string): Promise<Teammate> {
+    const r = await this.json<{ data: Teammate }>("POST", `/api/team/${agentId}/conversations`);
+    return r.data;
+  }
+
   // ── runners ─────────────────────────────────────────────────────────────
 
   async listRunners(): Promise<Runner[]> {
@@ -177,7 +188,7 @@ export class FountainClient {
     return this.json<void>("POST", `/api/conversations/${conversationId}/read`);
   }
 
-  /** End the conversation and its computer; the teammate's next message opens a fresh one and this one joins its history. */
+  /** End the conversation and its computer; the teammate's next message opens a fresh one on a new computer and this one joins its history. (`freshConversation` keeps the computer.) */
   terminate(conversationId: string): Promise<unknown> {
     return this.json("POST", `/api/conversations/${conversationId}/terminate`);
   }

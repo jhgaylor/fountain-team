@@ -26,7 +26,8 @@ export function History({
   teammate: Teammate;
   onClose: () => void;
   onOpenCurrent: () => void;
-  onRetire: () => void;
+  /** Start a fresh thread: on the same computer (default), or — `newComputer` — terminating this one. */
+  onRetire: (newComputer: boolean) => void;
   fountainUrl: string;
 }) {
   const [rows, setRows] = useState<HistoryConversation[] | null>(null);
@@ -92,7 +93,9 @@ export function History({
                     <span className="name">
                       {r.title || "Untitled"}
                       {r.current && <span className="tag">current</span>}
-                      {r.status === "terminated" && !r.current && <span className="tag">computer shut down</span>}
+                      {r.status === "terminated" && !r.current && (
+                        <span className="tag">{sameComputer(r, teammate) ? "retired" : "computer shut down"}</span>
+                      )}
                     </span>
                     <span className="time">{formatTime(r.last_active_at ?? r.inserted_at)}</span>
                   </div>
@@ -109,9 +112,24 @@ export function History({
             {rows.length === 0 && <li className="muted">No conversations yet.</li>}
           </ul>
         )}
-        {!open && rows && teammate.conversation.status !== "terminated" && (
+        {!open && rows && (
           <div className="row end">
-            <button type="button" className="secondary small" onClick={onRetire} title="End the current conversation and its computer; it stays here and the next message starts a fresh one">
+            {teammate.conversation.status !== "terminated" && (
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => onRetire(true)}
+                title="End the current conversation and shut down its computer; it stays here and the next message starts a fresh one on a new computer"
+              >
+                Fresh thread on a new computer…
+              </button>
+            )}
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => onRetire(false)}
+              title="Retire the current conversation and start a new one on the same computer — files and tools stay, the context is fresh; the old thread stays here"
+            >
               Start a fresh thread…
             </button>
           </div>
@@ -127,6 +145,15 @@ export function History({
       </div>
     </div>
   );
+}
+
+/**
+ * Whether a retired thread ran on the computer the teammate is still using — a "Start a fresh
+ * thread" (same computer) retirement, as opposed to one whose computer was shut down.
+ */
+function sameComputer(r: HistoryConversation, teammate: Teammate): boolean {
+  const cur = teammate.conversation;
+  return cur.status !== "terminated" && cur.status !== "failed" && !!r.sandbox_id && r.sandbox_id === cur.sandbox_id;
 }
 
 /** The turns of a retired conversation, rendered like the thread but with nothing to send. */
