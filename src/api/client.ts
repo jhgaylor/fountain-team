@@ -228,6 +228,11 @@ export class FountainClient {
     return out;
   }
 
+  /** Save (and validate against the provider) one inference credential for the account. */
+  putInferenceCredential(provider: string, value: string): Promise<unknown> {
+    return this.json("PUT", `/api/account/inference-credentials/${provider}`, { value, validate: true });
+  }
+
   createAgent(input: {
     name: string;
     model: string;
