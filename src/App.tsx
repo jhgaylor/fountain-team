@@ -272,8 +272,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   useEffect(() => {
     const waiting = team.some(
       (t) =>
-        t.presence.state === "starting" ||
-        t.conversation.status === "pending" ||
+        (t.presence.state === "starting" && t.conversation.sandbox?.status !== "ready") ||
         (queues.get(t.agent_id)?.length && t.presence.state !== "working" && t.conversation.status !== "running"),
     );
     if (!waiting) return;

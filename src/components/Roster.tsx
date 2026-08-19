@@ -204,7 +204,10 @@ function RosterRow({
       <button className={`roster-row ${selected ? "selected" : ""}`} onClick={onSelect}>
         <div className="avatar-wrap">
           <Avatar agent={t.agent} name={t.name} client={client} />
-          <span className={`presence ${t.presence.state}`} title={t.presence.label} />
+          <span
+            className={`presence ${t.presence.state === "starting" && t.conversation.sandbox?.status === "ready" ? "online" : t.presence.state}`}
+            title={t.presence.state === "starting" && t.conversation.sandbox?.status === "ready" ? "ready" : t.presence.label}
+          />
         </div>
         <div className="roster-text">
           <div className="roster-line">
