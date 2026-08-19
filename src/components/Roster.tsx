@@ -1,19 +1,60 @@
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Teammate } from "../api/types";
 import type { FountainClient } from "../api/client";
+import type { Prefs } from "../lib/prefs";
+import type { NotifyPermission } from "../lib/notify";
 import { Avatar } from "./Avatar";
+
+export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove";
 
 interface Props {
   client: FountainClient;
   teammates: Teammate[];
   selectedId: string | null;
+  prefs: Prefs;
+  notifyPermission: NotifyPermission;
   onSelect: (agentId: string) => void;
   onAdd: () => void;
   onSettings: () => void;
   onSignOut: () => void;
+  onToggleNotify: () => void;
+  onRowAction: (agentId: string, action: RowAction) => void;
   connected: boolean;
 }
 
-export function Roster({ client, teammates, selectedId, onSelect, onAdd, onSettings, onSignOut, connected }: Props) {
+interface MenuState {
+  agentId: string;
+  x: number;
+  y: number;
+}
+
+export function Roster({
+  client,
+  teammates,
+  selectedId,
+  prefs,
+  notifyPermission,
+  onSelect,
+  onAdd,
+  onSettings,
+  onSignOut,
+  onToggleNotify,
+  onRowAction,
+  connected,
+}: Props) {
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const notifyOn = prefs.notify && notifyPermission === "granted";
+  const notifyTitle =
+    notifyPermission === "unsupported"
+      ? "This browser cannot show notifications"
+      : notifyPermission === "denied"
+        ? "Notifications are blocked for this site in the browser"
+        : notifyOn
+          ? "Notifications on — click to turn off"
+          : "Notify me when a teammate replies";
+
+  const openMenu = (agentId: string, x: number, y: number) => setMenu({ agentId, x, y });
+
   return (
     <aside className="roster">
       <header className="roster-header">
@@ -22,6 +63,16 @@ export function Roster({ client, teammates, selectedId, onSelect, onAdd, onSetti
           <span className={`link-dot ${connected ? "on" : "off"}`} title={connected ? "Live" : "Reconnecting…"} />
         </h1>
         <div className="row">
+          <button
+            className={`icon ${notifyOn ? "active" : ""}`}
+            onClick={onToggleNotify}
+            disabled={notifyPermission === "unsupported" || notifyPermission === "denied"}
+            aria-label={notifyTitle}
+            aria-pressed={notifyOn}
+            title={notifyTitle}
+          >
+            {notifyOn ? "🔔" : "🔕"}
+          </button>
           <button className="icon" onClick={onSettings} aria-label="Settings" title="Settings">
             ⚙
           </button>
@@ -51,19 +102,58 @@ export function Roster({ client, teammates, selectedId, onSelect, onAdd, onSetti
               client={client}
               teammate={t}
               selected={t.agent_id === selectedId}
+              pinned={prefs.pinned.includes(t.agent_id)}
+              muted={prefs.muted.includes(t.agent_id)}
+              markedUnread={prefs.unread.includes(t.agent_id)}
               onSelect={() => onSelect(t.agent_id)}
+              onMenu={(x, y) => openMenu(t.agent_id, x, y)}
             />
           ))}
         </ul>
       </div>
+      {menu && (
+        <RowMenu
+          teammate={teammates.find((t) => t.agent_id === menu.agentId) ?? null}
+          prefs={prefs}
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onAction={(action) => {
+            setMenu(null);
+            onRowAction(menu.agentId, action);
+          }}
+        />
+      )}
     </aside>
   );
 }
 
-function RosterRow({ client, teammate: t, selected, onSelect }: { client: FountainClient; teammate: Teammate; selected: boolean; onSelect: () => void }) {
-  const unread = !selected && t.unread;
+function RosterRow({
+  client,
+  teammate: t,
+  selected,
+  pinned,
+  muted,
+  markedUnread,
+  onSelect,
+  onMenu,
+}: {
+  client: FountainClient;
+  teammate: Teammate;
+  selected: boolean;
+  pinned: boolean;
+  muted: boolean;
+  markedUnread: boolean;
+  onSelect: () => void;
+  onMenu: (x: number, y: number) => void;
+}) {
+  const unread = !selected && (t.unread || markedUnread);
+  const onContext = (e: MouseEvent) => {
+    e.preventDefault();
+    onMenu(e.clientX, e.clientY);
+  };
   return (
-    <li>
+    <li className="roster-item" onContextMenu={onContext}>
       <button className={`roster-row ${selected ? "selected" : ""}`} onClick={onSelect}>
         <div className="avatar-wrap">
           <Avatar agent={t.agent} name={t.name} client={client} />
@@ -71,8 +161,22 @@ function RosterRow({ client, teammate: t, selected, onSelect }: { client: Founta
         </div>
         <div className="roster-text">
           <div className="roster-line">
-            <span className="name">{t.name}</span>
-            <span className="time">{formatTime(t.conversation.last_active_at)}</span>
+            <span className="name">
+              {pinned && (
+                <span className="pin" title="Pinned">
+                  📌{" "}
+                </span>
+              )}
+              {t.name}
+            </span>
+            <span className="time">
+              {muted && (
+                <span className="muted-mark" title="Muted">
+                  🔕{" "}
+                </span>
+              )}
+              {formatTime(t.conversation.last_active_at)}
+            </span>
           </div>
           <div className="roster-line">
             <span className={`preview ${unread ? "unread" : ""}`}>
@@ -82,7 +186,84 @@ function RosterRow({ client, teammate: t, selected, onSelect }: { client: Founta
           </div>
         </div>
       </button>
+      <button
+        className="icon more"
+        aria-label={`More for ${t.name}`}
+        title="More"
+        onClick={(e) => {
+          e.stopPropagation();
+          const r = e.currentTarget.getBoundingClientRect();
+          onMenu(r.left, r.bottom);
+        }}
+      >
+        ⋯
+      </button>
     </li>
+  );
+}
+
+function RowMenu({
+  teammate,
+  prefs,
+  x,
+  y,
+  onClose,
+  onAction,
+}: {
+  teammate: Teammate | null;
+  prefs: Prefs;
+  x: number;
+  y: number;
+  onClose: () => void;
+  onAction: (action: RowAction) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: Event) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("blur", onClose);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("blur", onClose);
+    };
+  }, [onClose]);
+  if (!teammate) return null;
+  const pinned = prefs.pinned.includes(teammate.agent_id);
+  const muted = prefs.muted.includes(teammate.agent_id);
+  const unread = teammate.unread || prefs.unread.includes(teammate.agent_id);
+  // keep the menu on screen
+  const left = Math.min(x, window.innerWidth - 240);
+  const top = Math.min(y, window.innerHeight - 260);
+  return (
+    <div className="menu" ref={ref} style={{ left, top }} role="menu" aria-label={`Actions for ${teammate.name}`}>
+      <button role="menuitem" onClick={() => onAction("pin")}>
+        {pinned ? "Unpin" : "Pin to top"}
+      </button>
+      <button role="menuitem" onClick={() => onAction("mute")}>
+        {muted ? "Unmute notifications" : "Mute notifications"}
+      </button>
+      <button role="menuitem" onClick={() => onAction(unread ? "read" : "unread")}>
+        {unread ? "Mark as read" : "Mark as unread"}
+      </button>
+      <hr />
+      <button role="menuitem" onClick={() => onAction("open")}>
+        Open in Fountain
+      </button>
+      <button role="menuitem" onClick={() => onAction("copy-id")}>
+        Copy conversation id
+      </button>
+      <hr />
+      <button role="menuitem" className="danger-text" onClick={() => onAction("remove")}>
+        Remove from team…
+      </button>
+    </div>
   );
 }
 

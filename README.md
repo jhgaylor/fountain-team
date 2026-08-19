@@ -35,6 +35,41 @@ API_CORS_ORIGINS=https://jakegaylor.com       # wherever you host the build
 That switch is off by default and only ever admits a presented bearer key —
 cookies never cross origins — so turning it on for your own client is safe.
 
+## What it does
+
+Beyond the roster and the thread — the things a messaging app is expected to
+do, each on the public API:
+
+- **Send while they're busy.** A message to a teammate mid-turn does not
+  bounce: it queues in the thread (dashed bubble, ⏱ send button) and is sent
+  the moment the turn ends — several queued notes go as one turn. Interrupt,
+  then queue a correction, and the correction runs. Cancel a queued note from
+  its bubble.
+- **Images.** Paste, drop, or attach png/jpeg/gif/webp (10 MB each); they go
+  with the prompt and show in the thread, fetched back from the API.
+- **Notifications.** The bell in the roster header asks the browser once;
+  after that a reply from a teammate you're not looking at (or in a
+  background tab) raises a desktop notification that opens the thread. Mute
+  a teammate from the row menu. The tab title carries the unread count.
+- **Row menu** (right-click, or ⋯ on hover): pin to top, mute, mark as
+  unread / read, open in Fountain, copy the conversation id, remove.
+- **Drafts** survive switching teammates and reloads.
+- **Reading is not interrupted.** New content only scrolls the thread when
+  you were already at the bottom; otherwise a "New messages ↓" pill waits.
+  Long threads render the last 40 turns with "Show earlier messages".
+
+Pins, mutes, marks and drafts live in this browser's `localStorage`; Fountain
+has no field for them.
+
+## Develop against a Fountain without CORS
+
+```bash
+FOUNTAIN_PROXY=https://your-fountain.example bun run dev
+```
+
+forwards `/api` from the dev server, so enter `http://localhost:5173` as the
+Fountain URL and paste a key (OAuth needs the real origin).
+
 ## Build and host
 
 ```bash
@@ -58,7 +93,7 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 |---|---|
 | Roster, presence, previews, unread | `GET /api/team` |
 | Add (name, environment, vault) | `POST /api/team`, with `GET /api/agents`, `/api/environments`, `/api/vaults` for the picker |
-| Send | `POST /api/team/:agent_id/messages` |
+| Send (text + images) | `POST /api/team/:agent_id/messages`; `GET /api/conversations/:id/turns/:turn_id/images/:pos` to show them back |
 | Thread | `GET /api/conversations/:id/turns` + `/events` |
 | Live updates | `GET /api/team/stream` — one SSE connection for the whole team, `Last-Event-ID` on reconnect |
 | Read state | `POST /api/conversations/:id/read` |

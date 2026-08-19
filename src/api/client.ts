@@ -69,8 +69,14 @@ export class FountainClient {
     return this.json<void>("DELETE", `/api/team/${agentId}`);
   }
 
-  sendMessage(agentId: string, prompt: string): Promise<{ status: string; conversation_id: string }> {
-    return this.json("POST", `/api/team/${agentId}/messages`, { prompt });
+  sendMessage(
+    agentId: string,
+    prompt: string,
+    images: Array<{ data: string; media_type: string }> = [],
+  ): Promise<{ status: string; conversation_id: string }> {
+    const body: Record<string, unknown> = { prompt };
+    if (images.length) body.images = images.map((i) => ({ data: i.data, media_type: i.media_type }));
+    return this.json("POST", `/api/team/${agentId}/messages`, body);
   }
 
   // ── conversations (the thread) ──────────────────────────────────────────
@@ -94,6 +100,13 @@ export class FountainClient {
       after = page.meta.next_cursor;
     }
     return out;
+  }
+
+  /** The bytes of one image attached to a turn, as an object URL (revoke it when done). */
+  async turnImageUrl(conversationId: string, turnId: string, position: number): Promise<string> {
+    const res = await this.fetchRaw(`/api/conversations/${conversationId}/turns/${turnId}/images/${position}`);
+    if (!res.ok) throw new ApiError(res.status, null, `image ${res.status}`);
+    return URL.createObjectURL(await res.blob());
   }
 
   markRead(conversationId: string): Promise<void> {
