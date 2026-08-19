@@ -66,14 +66,19 @@ export function defaultBrain(brains: Brain[]): Brain | null {
 
 export function labelFor(model: string): string {
   const [provider, name = ""] = model.split("/");
-  const pretty = name
-    .replace(/^claude-/, "Claude ")
-    .replace(/^gemini-/, "Gemini ")
-    .replace(/^gpt-(\S+)/, (_m, rest: string) => `GPT-${rest.replace(/-/g, " ")}`)
-    .replace(/(?<!GPT)-(\d)/g, " $1")
-    .replace(/\b(opus|sonnet|haiku|codex|pro|flash)\b/g, (m) => m[0]!.toUpperCase() + m.slice(1));
+  const words = name
+    .split("-")
+    .filter(Boolean)
+    .map((w) => {
+      if (w === "claude") return "Claude";
+      if (w === "gpt") return "GPT";
+      if (w === "gemini") return "Gemini";
+      return /^(opus|sonnet|haiku|codex|pro|flash|mini|nano)$/.test(w) ? w[0]!.toUpperCase() + w.slice(1) : w;
+    });
+  // "GPT 5" reads as "GPT-5"; everything else separates with spaces
+  const pretty = words.join(" ").replace(/\bGPT (\S+)/, "GPT-$1");
   const who = provider === "anthropic" ? "Anthropic" : provider === "openai" ? "OpenAI" : provider === "google" ? "Google" : provider;
-  return `${pretty.trim() || name} · ${who}`;
+  return `${pretty || name} · ${who}`;
 }
 
 /** The system prompt a persona line becomes. Short on purpose: the agent is a teammate in a chat, not a product. */
