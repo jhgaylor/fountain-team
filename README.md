@@ -37,6 +37,16 @@ cookies never cross origins — so turning it on for your own client is safe.
 
 ## What it does
 
+**Adding a teammate is a name, a brain, and one line** (after Grok Bot /
+OpenMausBot): the name is suggested, the brain is a single picker over the
+catalog (Claude Sonnet by default, providers without an inference credential
+marked), the line becomes their description and the start of their
+instructions, and a generated avatar is attached when the account can make
+one. Everything else Fountain can configure on an agent — runtime (follows
+the brain), environment, vault, skills, MCP servers, sandbox provider — is
+defaulted by this app; tune it in Fountain when you want to. "Add an agent
+you already have" is the second tab.
+
 Beyond the roster and the thread — the things a messaging app is expected to
 do, each on the public API:
 
@@ -131,7 +141,8 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | In the app | API |
 |---|---|
 | Roster, presence, previews, unread | `GET /api/team` |
-| Add (name, environment, vault) | `POST /api/team`, with `GET /api/agents`, `/api/environments`, `/api/vaults` for the picker |
+| Add — new teammate | `GET /api/catalog` + `/api/account/inference-credentials` for the brain picker, `POST /api/agents`, `POST /api/avatars/generate` + `PUT /api/agents/:id/avatar`, then `POST /api/team` |
+| Add — an agent you already have | `POST /api/team`, with `GET /api/agents`, `/api/environments`, `/api/vaults` for the picker |
 | Send (text + images) | `POST /api/team/:agent_id/messages`; `GET /api/conversations/:id/turns/:turn_id/images/:pos` to show them back |
 | Thread | `GET /api/conversations/:id/turns` + `/events` |
 | Live updates | `GET /api/team/stream` — one SSE connection for the whole team, `Last-Event-ID` on reconnect |
