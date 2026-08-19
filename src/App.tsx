@@ -877,6 +877,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           focusTurnId={focusTurnId}
           onFocused={() => setFocusTurnId(null)}
           onAgentChanged={() => void refreshTeam()}
+          onlyTeammate={team.length === 1}
           activityOpen={prefs.activity}
           onActivityChange={(open) => updatePrefs((p) => ({ ...p, activity: open }))}
           fountainUrl={client.baseUrl}

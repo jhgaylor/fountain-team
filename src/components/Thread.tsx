@@ -57,6 +57,8 @@ interface Props {
   onActivityChange: (open: boolean) => void;
   /** the agent behind this teammate changed (brain, persona): re-list */
   onAgentChanged: () => void;
+  /** this is the only teammate on the team (the /create-team tip shows) */
+  onlyTeammate: boolean;
   fountainUrl: string;
 }
 
@@ -87,6 +89,7 @@ export function Thread({
   activityOpen,
   onActivityChange,
   onAgentChanged,
+  onlyTeammate,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
@@ -260,6 +263,11 @@ export function Thread({
     });
     textRef.current?.focus();
   }, [conv.id]);
+
+  const onPrefill = (text: string) => {
+    changeDraft(text);
+    textRef.current?.focus();
+  };
 
   const changeDraft = (text: string) => {
     setDraft(text);
@@ -524,6 +532,15 @@ export function Thread({
                     </button>{" "}
                     first: what they do, which brain, skills, the apps they can use.
                   </div>
+                  {onlyTeammate && (
+                    <div className="small tip">
+                      Tip: your first teammate can set up the rest of the team. Send{" "}
+                      <button type="button" className="linkish mono" onClick={() => onPrefill("/create-team")}>
+                        /create-team
+                      </button>{" "}
+                      and it will ask what you want done and propose a roster.
+                    </div>
+                  )}
                 </>
               )}
               <div className="small muted">

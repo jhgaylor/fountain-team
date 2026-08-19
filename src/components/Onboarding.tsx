@@ -17,6 +17,10 @@ export function Onboarding({ onAdd, onAddExisting, busy, error }: { onAdd: () =>
             <b>Say hello</b> — the first message starts its computer (a few seconds).
           </li>
           <li>
+            <b>Let it build the rest</b> — send your first teammate <code>/create-team</code>: it asks what you want done and
+            proposes and creates the others. Teammates can message each other.
+          </li>
+          <li>
             <b>Keep going</b> — queue notes while it works, paste screenshots, set a routine, search everything with <kbd>⌘K</kbd>.
           </li>
         </ol>
