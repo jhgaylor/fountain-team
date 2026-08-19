@@ -4,6 +4,7 @@ import type { FountainClient } from "../api/client";
 import type { Prefs } from "../lib/prefs";
 import type { NotifyPermission } from "../lib/notify";
 import { Avatar } from "./Avatar";
+import { Menu } from "./Menu";
 
 export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove";
 
@@ -19,6 +20,9 @@ interface Props {
   onSignOut: () => void;
   onToggleNotify: () => void;
   onRowAction: (agentId: string, action: RowAction) => void;
+  onRoutines: () => void;
+  onPalette: () => void;
+  onExport: () => void;
   connected: boolean;
 }
 
@@ -40,9 +44,13 @@ export function Roster({
   onSignOut,
   onToggleNotify,
   onRowAction,
+  onRoutines,
+  onPalette,
+  onExport,
   connected,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [teamMenu, setTeamMenu] = useState<{ x: number; y: number } | null>(null);
   const notifyOn = prefs.notify && notifyPermission === "granted";
   const notifyTitle =
     notifyPermission === "unsupported"
@@ -73,11 +81,19 @@ export function Roster({
           >
             {notifyOn ? "🔔" : "🔕"}
           </button>
-          <button className="icon" onClick={onSettings} aria-label="Settings" title="Settings">
-            ⚙
+          <button className="icon" onClick={onPalette} aria-label="Search (⌘K)" title="Jump to a teammate or search every conversation (⌘K)">
+            ⌕
           </button>
-          <button className="icon" onClick={onSignOut} aria-label="Sign out" title="Sign out">
-            ⏻
+          <button
+            className="icon"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setTeamMenu({ x: r.left, y: r.bottom + 4 });
+            }}
+            aria-label="Team menu"
+            title="Routines, export, settings"
+          >
+            ⋯
           </button>
           <button className="icon primary" onClick={onAdd} aria-label="Add a teammate" title="Add a teammate">
             +
@@ -111,6 +127,20 @@ export function Roster({
           ))}
         </ul>
       </div>
+      {teamMenu && (
+        <Menu
+          x={teamMenu.x}
+          y={teamMenu.y}
+          label="Team menu"
+          onClose={() => setTeamMenu(null)}
+          items={[
+            { label: "⏰  Routines", onSelect: onRoutines },
+            { label: "⤓  Export team as a manifest", onSelect: onExport },
+            { label: "⚙  Settings", onSelect: onSettings, divider: true },
+            { label: "⏻  Sign out", onSelect: onSignOut, danger: true },
+          ]}
+        />
+      )}
       {menu && (
         <RowMenu
           teammate={teammates.find((t) => t.agent_id === menu.agentId) ?? null}

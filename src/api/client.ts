@@ -10,7 +10,11 @@ import type {
   Environment,
   LogEvent,
   Me,
+  Schedule,
+  ScheduleInput,
+  SearchHit,
   Teammate,
+  TreeNode,
   Turn,
   Vault,
 } from "./types";
@@ -79,7 +83,44 @@ export class FountainClient {
     return this.json("POST", `/api/team/${agentId}/messages`, body);
   }
 
+  // ── schedules (routines) ────────────────────────────────────────────────
+
+  async listSchedules(): Promise<Schedule[]> {
+    return (await this.json<{ data: Schedule[] }>("GET", "/api/team/schedules")).data;
+  }
+
+  async createSchedule(agentId: string, input: ScheduleInput): Promise<Schedule> {
+    return (await this.json<{ data: Schedule }>("POST", `/api/team/${agentId}/schedules`, input)).data;
+  }
+
+  async updateSchedule(agentId: string, id: string, input: Partial<ScheduleInput>): Promise<Schedule> {
+    return (await this.json<{ data: Schedule }>("PATCH", `/api/team/${agentId}/schedules/${id}`, input)).data;
+  }
+
+  deleteSchedule(agentId: string, id: string): Promise<void> {
+    return this.json<void>("DELETE", `/api/team/${agentId}/schedules/${id}`);
+  }
+
+  runSchedule(agentId: string, id: string): Promise<{ status: string; conversation_id: string }> {
+    return this.json("POST", `/api/team/${agentId}/schedules/${id}/run`);
+  }
+
+  // ── search ──────────────────────────────────────────────────────────────
+
+  async search(q: string, opts: { limit?: number; signal?: AbortSignal } = {}): Promise<SearchHit[]> {
+    const qs = new URLSearchParams({ q, limit: String(opts.limit ?? 20) });
+    return (await this.json<{ data: SearchHit[] }>("GET", `/api/search?${qs}`, undefined, opts.signal)).data;
+  }
+
   // ── conversations (the thread) ──────────────────────────────────────────
+
+  async tree(conversationId: string): Promise<TreeNode[]> {
+    return (await this.json<{ data: TreeNode[] }>("GET", `/api/conversations/${conversationId}/tree`)).data;
+  }
+
+  getAgent(agentId: string): Promise<Agent> {
+    return this.json<{ data: Agent }>("GET", `/api/agents/${agentId}`).then((r) => r.data);
+  }
 
   async listTurns(conversationId: string): Promise<Turn[]> {
     const r = await this.json<{ data: Turn[] }>("GET", `/api/conversations/${conversationId}/turns`);
@@ -169,7 +210,7 @@ export class FountainClient {
 
   // ── plumbing ────────────────────────────────────────────────────────────
 
-  private async json<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async json<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
     const headers: Record<string, string> = {
       authorization: `Bearer ${this.settings.apiKey}`,
       accept: "application/json",
@@ -179,6 +220,7 @@ export class FountainClient {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
     if (res.status === 204) return undefined as T;
     const text = await res.text();

@@ -9,10 +9,11 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
-import type { LogEvent, Teammate, Turn } from "../api/types";
+import type { LogEvent, Teammate, TreeNode, Turn } from "../api/types";
 import type { FountainClient } from "../api/client";
 import { blocksForTurn, type Block } from "../lib/acp";
 import { loadDraft, saveDraft } from "../lib/drafts";
+import { formatUsage } from "../lib/format";
 import { imageFilesFrom, readImage, releaseImages, type OutgoingImage } from "../lib/images";
 import type { QueuedMessage } from "../lib/queue";
 import { isNearBottom, TURN_WINDOW, windowTail } from "../lib/scroll";
@@ -32,6 +33,10 @@ interface Props {
   onRemove: () => void;
   onBack: () => void;
   onError: (text: string) => void;
+  onRoutines: () => void;
+  /** a turn to scroll to and highlight (from search); cleared by the parent once consumed */
+  focusTurnId: string | null;
+  onFocused: () => void;
   fountainUrl: string;
 }
 
@@ -48,6 +53,9 @@ export function Thread({
   onRemove,
   onBack,
   onError,
+  onRoutines,
+  focusTurnId,
+  onFocused,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
@@ -117,6 +125,45 @@ export function Thread({
     setFollowing(near);
     if (near) setPendingBelow(false);
   };
+
+  // Jump to a turn (from search): widen the window until it renders, then
+  // scroll it into view and highlight it for a moment.
+  const [highlight, setHighlight] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusTurnId) return;
+    const idx = turns.findIndex((t) => t.id === focusTurnId);
+    if (idx === -1) return; // not (yet) in this conversation's turns
+    const needed = turns.length - idx;
+    if (needed > visible) {
+      setVisible(Math.ceil(needed / TURN_WINDOW) * TURN_WINDOW);
+      return; // re-run once the window grew
+    }
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-turn-id="${focusTurnId}"]`);
+    if (!el) return;
+    setFollowing(false);
+    el.scrollIntoView({ block: "center" });
+    setHighlight(focusTurnId);
+    // not cleaned up on purpose: onFocused() clears focusTurnId, which would
+    // cancel the timeout before it ran and leave the highlight on
+    window.setTimeout(() => setHighlight((h) => (h === focusTurnId ? null : h)), 2500);
+    onFocused();
+  }, [focusTurnId, turns, visible, onFocused]);
+
+  // The spawn tree: what this teammate started (sub-conversations over the API).
+  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [treeOpen, setTreeOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    client
+      .tree(conv.id)
+      .then((nodes) => !cancelled && setTree(nodes))
+      .catch(() => !cancelled && setTree([]));
+    return () => {
+      cancelled = true;
+    };
+    // re-read whenever a turn ends (turns.length changes on start; status on end)
+  }, [client, conv.id, turns.length, conv.status]);
+  const spawned = tree.filter((n) => n.id !== conv.id);
 
   const showEarlier = () => {
     const el = scrollRef.current;
@@ -228,9 +275,23 @@ export function Thread({
             <span className={`presence inline ${teammate.presence.state}`} />
             <span>{teammate.presence.label}</span>
             {conv.sandbox && <span className="mono muted"> · {conv.sandbox.sprite_name}</span>}
+            {formatUsage(teammate.usage_total) && (
+              <span className="muted" title="Tokens over every conversation this teammate has had on the team">
+                {" "}
+                · {formatUsage(teammate.usage_total)}
+              </span>
+            )}
           </div>
         </div>
         <div className="row">
+          {spawned.length > 0 && (
+            <button className="secondary small" onClick={() => setTreeOpen((o) => !o)} title="Conversations this teammate started" aria-expanded={treeOpen}>
+              Spawned · {spawned.length}
+            </button>
+          )}
+          <button className="secondary small" onClick={onRoutines} title="Schedules that run this teammate">
+            Routines
+          </button>
           {conv.status === "running" && (
             <button className="secondary small" onClick={onInterrupt}>
               Interrupt
@@ -251,6 +312,26 @@ export function Thread({
         </div>
       </header>
 
+      {treeOpen && spawned.length > 0 && (
+        <div className="spawned">
+          <div className="spawned-head small muted">Started by {teammate.name} — sub-conversations in this thread's spawn tree</div>
+          <ul>
+            {spawned.map((n) => (
+              <li key={n.id}>
+                <span className={`presence inline ${n.status === "running" ? "working" : n.status === "failed" ? "failed" : "online"}`} />
+                <a href={`${fountainUrl}/conversations/${n.id}`} target="_blank" rel="noreferrer">
+                  {n.title || n.id.slice(0, 8)}
+                </a>
+                <span className="muted small">
+                  {" "}
+                  · {n.status}
+                  {n.parent_id && n.parent_id !== conv.id ? " · nested" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="messages-wrap">
         <div className="messages" ref={scrollRef} onScroll={onScroll}>
           {loading && <div className="centered muted">Loading…</div>}
@@ -288,6 +369,7 @@ export function Thread({
               turn={turn}
               events={eventsByTurn.get(turn.id) ?? []}
               runtime={conv.runtime}
+              highlighted={highlight === turn.id}
             />
           ))}
           {queued.map((q) => (
@@ -394,18 +476,21 @@ function TurnView({
   turn,
   events,
   runtime,
+  highlighted,
 }: {
   client: FountainClient;
   conversationId: string;
   turn: Turn;
   events: LogEvent[];
   runtime: string;
+  highlighted: boolean;
 }) {
   const blocks = useMemo(() => blocksForTurn(events, runtime), [events, runtime]);
   const inFlight = turn.status === "pending" || turn.status === "running";
   const failed = turn.status === "failed" || turn.status === "cancelled";
+  const usage = formatUsage(turn.usage);
   return (
-    <div className="turn">
+    <div className={`turn ${highlighted ? "highlight" : ""}`} data-turn-id={turn.id}>
       <div className="bubble you">
         {turn.image_count > 0 && <TurnImages client={client} conversationId={conversationId} turn={turn} />}
         {turn.prompt && <div className="body">{turn.prompt}</div>}
@@ -423,6 +508,11 @@ function TurnView({
       )}
       {inFlight && blocks.length > 0 && <div className="muted small typing-note">typing…</div>}
       {failed && <div className="muted small typing-note">turn {turn.status}</div>}
+      {!inFlight && usage && (
+        <div className="muted small typing-note usage" title="Tokens the runtime reported for this turn">
+          {usage}
+        </div>
+      )}
     </div>
   );
 }

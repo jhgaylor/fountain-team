@@ -58,6 +58,21 @@ do, each on the public API:
   you were already at the bottom; otherwise a "New messages ↓" pill waits.
   Long threads render the last 40 turns with "Show earlier messages".
 
+- **Routines** (team menu ⋯ → Routines, or from a thread header): the
+  schedules that run a teammate with a prompt — in their thread or on a
+  one-off computer. Presets or a custom cron (UTC), pause/resume, run now,
+  edit, delete; the list follows the stream's `schedule` event.
+- **⌘K** (Ctrl+K): jump to a teammate by name, a couple of commands, and
+  full-text search across every conversation — pick a hit and the thread
+  opens scrolled to that turn, highlighted. Hits outside the team open in
+  Fountain.
+- **Token usage**: per turn under the reply, and per teammate in the thread
+  header (summed over every conversation they've had on the team).
+- **Spawned**: when a teammate opened sub-conversations, a "Spawned · n"
+  button in the thread header lists them (`/tree`).
+- **Export** (team menu ⋯): the team as a `fountain apply` manifest —
+  one `Agent` document per teammate; import is `fountain apply -f team.yml`.
+
 Pins, mutes, marks and drafts live in this browser's `localStorage`; Fountain
 has no field for them.
 
@@ -98,6 +113,11 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | Live updates | `GET /api/team/stream` — one SSE connection for the whole team, `Last-Event-ID` on reconnect |
 | Read state | `POST /api/conversations/:id/read` |
 | Interrupt / Remove | `POST /api/conversations/:id/interrupt`, `DELETE /api/team/:agent_id` |
+| Routines | `GET /api/team/schedules`, `POST/PATCH/DELETE /api/team/:agent_id/schedules[/:id]`, `POST …/:id/run` |
+| Search (⌘K) | `GET /api/search?q=` |
+| Usage | `usage` on turns, `usage_total` on the roster |
+| Spawned | `GET /api/conversations/:id/tree` |
+| Export | `GET /api/agents/:id` + `/api/environments`, emitted as YAML client-side |
 
 `EventSource` cannot send an `Authorization` header, so the stream is read
 with `fetch` and parsed in `src/lib/sse.ts`. The ACP output is turned into
