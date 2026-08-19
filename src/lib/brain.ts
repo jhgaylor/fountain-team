@@ -24,7 +24,7 @@ export interface Brain {
   available: boolean;
 }
 
-const CREDENTIAL_PROVIDERS: Record<string, string[]> = {
+export const CREDENTIAL_PROVIDERS: Record<string, string[]> = {
   anthropic: ["anthropic_api_key", "claude_code_oauth_token"],
   openai: ["openai_api_key"],
   google: ["gemini_api_key"],
@@ -92,3 +92,20 @@ export function personaPrompt(name: string, persona: string): string {
     .filter(Boolean)
     .join(" ");
 }
+
+/** Where a key for a provider comes from, for the prompt that collects it. */
+export function keySource(credential: string): string {
+  switch (credential) {
+    case "anthropic_api_key":
+      return "console.anthropic.com";
+    case "claude_code_oauth_token":
+      return "`claude setup-token`";
+    case "openai_api_key":
+      return "platform.openai.com/api-keys";
+    case "gemini_api_key":
+      return "aistudio.google.com/apikey";
+    default:
+      return "";
+  }
+}
+
