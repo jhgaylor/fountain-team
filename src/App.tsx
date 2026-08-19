@@ -619,6 +619,33 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     [client, team, selectedId, refreshTeam, select, toast],
   );
 
+  /** Retire the current thread: terminate its conversation (computer included); it stays in History and the next message opens a fresh one. */
+  const retireThread = useCallback(
+    (agentId: string) => {
+      const t = team.find((x) => x.agent_id === agentId);
+      if (!t) return;
+      if (t.conversation.status === "terminated") {
+        toast("That thread is already retired — the next message starts a fresh one");
+        return;
+      }
+      if (
+        !window.confirm(
+          `Start a fresh thread with ${t.name}? This ends the current conversation and shuts down its computer (anything not committed or pushed from that computer is gone). The thread stays under History; the next message starts a new one.`,
+        )
+      )
+        return;
+      client
+        .terminate(t.conversation.id)
+        .then(() => {
+          toast(`Retired — ${t.name}'s next message starts a fresh computer`);
+          setQueues((q) => withoutConversation(q, agentId));
+          return refreshTeam();
+        })
+        .catch((err) => toast(describeError(err), "error"));
+    },
+    [client, team, refreshTeam, toast],
+  );
+
   const onRemove = useCallback(() => {
     if (selected) removeTeammate(selected.agent_id);
   }, [selected, removeTeammate]);
@@ -667,9 +694,12 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           select(agentId);
           setHistoryFor(agentId);
           break;
+        case "retire":
+          retireThread(agentId);
+          break;
       }
     },
-    [team, client, updatePrefs, removeTeammate, toast, select],
+    [team, client, updatePrefs, removeTeammate, retireThread, toast, select],
   );
 
   const orderedTeam = useMemo(() => sortPinnedFirst(team, prefs.pinned), [team, prefs.pinned]);
@@ -751,6 +781,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onOpenCurrent={() => {
             select(historyFor);
             setHistoryFor(null);
+          }}
+          onRetire={() => {
+            setHistoryFor(null);
+            retireThread(historyFor);
           }}
           fountainUrl={client.baseUrl}
         />

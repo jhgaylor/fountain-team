@@ -440,6 +440,10 @@ export function Thread({
                 <div>
                   <b>{teammate.name}</b>'s computer failed to start — a message tries a new one.
                 </div>
+              ) : conv.status === "terminated" ? (
+                <div>
+                  This thread is retired — a message starts <b>{teammate.name}</b> on a fresh computer. The old thread is under History.
+                </div>
               ) : (
                 <div>
                   Say hello to <b>{teammate.name}</b>.
