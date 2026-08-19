@@ -133,11 +133,11 @@ export function ContactDialog({
         </label>
         <p className="consent" id="contact-consent">
           {CONSENT_TEXT}{" "}
-          <a href={`${base}/legal/privacy`} target="_blank" rel="noreferrer">
+          <a href={`${base}/privacy`} target="_blank" rel="noreferrer">
             Privacy Policy
           </a>{" "}
           ·{" "}
-          <a href={`${base}/legal/terms`} target="_blank" rel="noreferrer">
+          <a href={`${base}/terms`} target="_blank" rel="noreferrer">
             Terms
           </a>
         </p>

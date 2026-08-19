@@ -37,8 +37,8 @@ describe("ContactDialog", () => {
       "By entering your number you agree to receive text messages from Fountain — your teammate&#x27;s replies and occasional notifications — at this number. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out at any time, HELP for help.";
     expect(html).toContain(consent);
     expect(CONSENT_TEXT).toContain("Reply STOP to opt out at any time, HELP for help.");
-    expect(html).toContain('<a href="https://fountain.test/legal/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>');
-    expect(html).toContain('<a href="https://fountain.test/legal/terms" target="_blank" rel="noreferrer">Terms</a>');
+    expect(html).toContain('<a href="https://fountain.test/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>');
+    expect(html).toContain('<a href="https://fountain.test/terms" target="_blank" rel="noreferrer">Terms</a>');
     // normal-size text: the consent paragraph is not in the "small" class
     expect(html).toMatch(/<p class="consent" id="contact-consent">/);
     // the field points at it
@@ -49,7 +49,7 @@ describe("ContactDialog", () => {
     const withContact = { ...teammate, contact: { email: "k@agentmail.to", phone: "+15551234567", prompt_from_number: "+15557654321", prompt_opted_out_at: "2026-08-19T12:00:00Z", inserted_at: "" } } as unknown as Teammate;
     const html = renderToString(<ContactDialog client={client} teammate={withContact} mode="change" onClose={() => undefined} onProvisioned={() => undefined} toast={() => undefined} />);
     expect(html).toContain("Reply STOP to opt out at any time, HELP for help.");
-    expect(html).toContain("/legal/privacy");
+    expect(html).toContain("/privacy");
     expect(html).not.toContain("both are billed");
     expect(html).toContain("paused since STOP was received");
     expect(html).toMatch(/<button type="submit" disabled="">Agree &amp; change number/);
