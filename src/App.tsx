@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, FountainClient, describeError } from "./api/client";
-import type { LogEvent, TeamEvent, Teammate, Turn } from "./api/types";
+import type { LogEvent, Schedule, SearchHit, TeamEvent, Teammate, Turn } from "./api/types";
 import { clearSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import { SettingsScreen } from "./components/Settings";
 import { completeLoginIfCallback, revoke } from "./lib/oauth";
 import { Roster, type RowAction } from "./components/Roster";
 import { Thread } from "./components/Thread";
 import { AddDialog } from "./components/AddDialog";
+import { Routines } from "./components/Routines";
+import { Palette, type PaletteChoice } from "./components/Palette";
+import { teamManifest } from "./lib/manifest";
 import { releaseImages, type OutgoingImage } from "./lib/images";
 import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
 import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
@@ -92,6 +95,11 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [team, setTeam] = useState<Teammate[]>([]);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(() => idFromHash());
+  const [page, setPage] = useState<"team" | "routines">(() => pageFromHash());
+  const [routinesFor, setRoutinesFor] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState<Schedule[] | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [focusTurnId, setFocusTurnId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -160,7 +168,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   // ── selection & thread ────────────────────────────────────────────────────
 
   useEffect(() => {
-    const onHash = () => setSelectedId(idFromHash());
+    const onHash = () => {
+      setSelectedId(idFromHash());
+      setPage(pageFromHash());
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -168,6 +179,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const select = useCallback(
     (agentId: string | null) => {
       window.location.hash = agentId ? `#/team/${agentId}` : "";
+      setPage("team");
       setSelectedId(agentId);
       if (agentId && prefsRef.current.unread.includes(agentId)) {
         updatePrefs((p) => ({ ...p, unread: without(p.unread, agentId) }));
@@ -269,6 +281,14 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     [select],
   );
 
+  const refreshSchedules = useCallback(async () => {
+    try {
+      setSchedules(await client.listSchedules());
+    } catch (err) {
+      toast(describeError(err), "error");
+    }
+  }, [client, toast]);
+
   // ── the team stream ───────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -293,6 +313,13 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           if (msg.id) lastEventId = msg.id;
           if (msg.event === "team") {
             void refreshTeam();
+            return;
+          }
+          if (msg.event === "schedule") {
+            setSchedules((cur) => {
+              if (cur !== null) void refreshSchedules();
+              return cur;
+            });
             return;
           }
           let ev: TeamEvent;
@@ -361,7 +388,94 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       stopped = true;
       ctrl.abort();
     };
-  }, [client, refreshTeam, scheduleRefresh, flush, notifyReply]);
+  }, [client, refreshTeam, refreshSchedules, scheduleRefresh, flush, notifyReply]);
+
+  // ── routines ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (page === "routines" && schedules === null) void refreshSchedules();
+  }, [page, schedules, refreshSchedules]);
+
+  const openRoutines = useCallback((forAgentId: string | null = null) => {
+    setRoutinesFor(forAgentId);
+    window.location.hash = "#/routines";
+    setPage("routines");
+  }, []);
+
+  // ── palette (⌘K) ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const exportTeam = useCallback(async () => {
+    if (!team.length) {
+      toast("Nothing to export — the team is empty");
+      return;
+    }
+    try {
+      const [agents, envs] = await Promise.all([Promise.all(team.map((t) => client.getAgent(t.agent_id))), client.listEnvironments()]);
+      const yaml = teamManifest(
+        team.map((t, i) => ({ name: t.name, agent: agents[i]! })),
+        envs,
+        new Date().toISOString(),
+      );
+      const blob = new Blob([yaml], { type: "application/yaml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "team.yml";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast(`Exported ${team.length} teammate${team.length === 1 ? "" : "s"} — apply with fountain apply -f team.yml`);
+    } catch (err) {
+      toast(describeError(err), "error");
+    }
+  }, [client, team, toast]);
+
+  const openHit = useCallback(
+    (hit: SearchHit) => {
+      const t = teamRef.current.find((x) => x.conversation.id === hit.conversation_id);
+      if (t) {
+        select(t.agent_id);
+        setFocusTurnId(hit.turn_id);
+        return;
+      }
+      // An older conversation of a teammate, or one outside the team: Fountain shows it.
+      window.open(`${client.baseUrl}/conversations/${hit.conversation_id}`, "_blank", "noopener");
+    },
+    [client.baseUrl, select],
+  );
+
+  const onPaletteChoice = useCallback(
+    (choice: PaletteChoice) => {
+      setPaletteOpen(false);
+      switch (choice.kind) {
+        case "teammate":
+          select(choice.agentId);
+          break;
+        case "hit":
+          openHit(choice.hit);
+          break;
+        case "routines":
+          openRoutines();
+          break;
+        case "export":
+          void exportTeam();
+          break;
+      }
+    },
+    [select, openHit, openRoutines, exportTeam],
+  );
 
   // ── actions ───────────────────────────────────────────────────────────────
 
@@ -499,7 +613,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const onTeamIds = useMemo(() => new Set(team.map((t) => t.agent_id)), [team]);
 
   return (
-    <div className={`app ${selected ? "thread-open" : ""}`}>
+    <div className={`app ${selected || page === "routines" ? "thread-open" : ""}`}>
       <Roster
         client={client}
         teammates={orderedTeam}
@@ -512,9 +626,24 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         onSignOut={onSignOut}
         onToggleNotify={() => void onToggleNotify()}
         onRowAction={onRowAction}
+        onRoutines={() => openRoutines()}
+        onPalette={() => setPaletteOpen(true)}
+        onExport={() => void exportTeam()}
         connected={connected}
       />
-      {selected ? (
+      {page === "routines" ? (
+        <Routines
+          client={client}
+          teammates={orderedTeam}
+          schedules={schedules}
+          forAgentId={routinesFor}
+          onRefresh={refreshSchedules}
+          onBack={() => select(null)}
+          onOpenTeammate={select}
+          toast={toast}
+          fountainUrl={client.baseUrl}
+        />
+      ) : selected ? (
         <Thread
           client={client}
           teammate={selected}
@@ -528,6 +657,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onRemove={onRemove}
           onBack={() => select(null)}
           onError={(text) => toast(text, "error")}
+          onRoutines={() => openRoutines(selected.agent_id)}
+          focusTurnId={focusTurnId}
+          onFocused={() => setFocusTurnId(null)}
           fountainUrl={client.baseUrl}
         />
       ) : (
@@ -541,6 +673,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           </div>
         </section>
       )}
+      {paletteOpen && <Palette client={client} teammates={orderedTeam} onChoose={onPaletteChoice} onClose={() => setPaletteOpen(false)} />}
       {adding && (
         <AddDialog
           client={client}
@@ -566,6 +699,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
 function idFromHash(): string | null {
   const m = /^#\/team\/([0-9a-f-]{36})$/.exec(window.location.hash);
   return m?.[1] ?? null;
+}
+
+function pageFromHash(): "team" | "routines" {
+  return window.location.hash === "#/routines" ? "routines" : "team";
 }
 
 function byActivity(a: Teammate, b: Teammate): number {
