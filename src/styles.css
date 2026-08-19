@@ -435,3 +435,6 @@ button.added:hover { color: var(--danger); border-color: color-mix(in srgb, var(
 .profile-details { margin-top: 6px; }
 .pick-row:has(.token-form) { align-items: flex-start; }
 .pick-row:has(.token-form) > button, .pick-row:has(.token-form) > .tile { margin-top: 2px; }
+.key-card { border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.key-card input { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
+.ok-text { color: var(--ok); }

@@ -3,7 +3,7 @@ import type { FountainClient } from "../api/client";
 import { describeError } from "../api/client";
 import type { Agent, Environment, Teammate } from "../api/types";
 import { formatUsage } from "../lib/format";
-import { brainsFrom, labelFor, personaPrompt, type Brain, type Catalog } from "../lib/brain";
+import { brainsFrom, CREDENTIAL_PROVIDERS, keySource, labelFor, personaPrompt, type Brain, type Catalog } from "../lib/brain";
 import { Avatar } from "./Avatar";
 import { Markdown } from "./Markdown";
 import { SkillsTab } from "./SkillsTab";
@@ -41,7 +41,9 @@ export function Profile({
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [creds, setCreds] = useState<Record<string, boolean>>({});
   const [persona, setPersona] = useState<string | null>(null);
-  const [saving, setSaving] = useState<"brain" | "persona" | null>(null);
+  const [saving, setSaving] = useState<"brain" | "persona" | "key" | null>(null);
+  const [keyDraft, setKeyDraft] = useState("");
+  const [keyMessage, setKeyMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [envs, setEnvs] = useState<Environment[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** skills/apps changed since opening: they need a fresh computer */
@@ -78,6 +80,25 @@ export function Profile({
   const a = agent ?? teammate.agent;
   const brains = useMemo(() => (catalog ? brainsFrom(catalog, creds) : []), [catalog, creds]);
   const brainKnown = brains.some((b) => b.model === a.model);
+  // the brain in use needs a provider this account holds no key for: collect it here
+  const currentBrain = brains.find((b) => b.model === a.model) ?? null;
+  const missingKey = currentBrain && !currentBrain.available ? (CREDENTIAL_PROVIDERS[currentBrain.provider]?.[0] ?? null) : null;
+
+  const saveKey = async () => {
+    if (!missingKey || !keyDraft.trim()) return;
+    setSaving("key");
+    setKeyMessage(null);
+    try {
+      await client.putInferenceCredential(missingKey, keyDraft.trim());
+      setCreds(await client.inferenceCredentials().catch(() => ({ ...creds, [missingKey]: true })));
+      setKeyDraft("");
+      setKeyMessage({ kind: "ok", text: "Saved and validated." });
+    } catch (err) {
+      setKeyMessage({ kind: "error", text: describeError(err) });
+    } finally {
+      setSaving(null);
+    }
+  };
   const skillCount = a.skills?.length ?? 0;
   const appCount = Object.keys(a.mcp_servers ?? {}).length;
 
@@ -189,6 +210,27 @@ export function Profile({
               </select>
               <span className="hint">The runtime follows the brain. A change applies from their next turn; the conversation continues.</span>
             </label>
+            {missingKey && (
+              <div className="key-card">
+                <div className="small">
+                  <b>No {providerName(currentBrain!.provider)} key on the account yet</b> — {teammate.name} can't answer on this brain until there is one. Paste it here (from{" "}
+                  {keySource(missingKey)}); it's validated and saved to your Fountain account.
+                </div>
+                <form
+                  className="row"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveKey();
+                  }}
+                >
+                  <input type="password" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} placeholder={missingKey} autoComplete="off" spellCheck={false} />
+                  <button type="submit" className="small" disabled={saving === "key" || !keyDraft.trim()}>
+                    {saving === "key" ? "Checking…" : "Save key"}
+                  </button>
+                </form>
+                {keyMessage && <div className={`small ${keyMessage.kind === "ok" ? "ok-text" : "error-inline"}`}>{keyMessage.text}</div>}
+              </div>
+            )}
 
             <label className="profile-field">
               What they do
@@ -292,3 +334,8 @@ export function Profile({
     </div>
   );
 }
+
+function providerName(p: string): string {
+  return p === "anthropic" ? "Anthropic" : p === "openai" ? "OpenAI" : p === "google" ? "Google" : p;
+}
+
