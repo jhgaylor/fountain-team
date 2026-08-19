@@ -126,8 +126,8 @@ do, each on the public API:
   on the **same computer**: the thread stays in History, the next message
   starts with a clean context, and the files and tools on the computer are
   where they were. **Fresh thread on a new computer…** is the other option:
-  the current conversation and its computer are shut down, and the next
-  message provisions a new one.
+  the current conversation and its computer are shut down and a new computer
+  starts right away — the thread shows it starting, then ready.
 - **Runners** (team menu ⋯): your own machines serving as a teammate's
   computer (Fountain's self-hosted runner): which are online, forget one,
   how to start `fountain runner`. A teammate on a runner shows "on
@@ -182,7 +182,7 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | Spawned | `GET /api/conversations/:id/tree` |
 | Export | `GET /api/agents/:id` + `/api/environments`, emitted as YAML client-side |
 | Rename / History | `PATCH /api/team/:agent_id`, `GET /api/team/:agent_id/conversations` |
-| Fresh thread (same computer / new computer) | `POST /api/team/:agent_id/conversations` / `POST /api/conversations/:id/terminate` |
+| Fresh thread (same computer / new computer) | `POST /api/team/:agent_id/conversations`; new computer: `POST /api/conversations/:id/terminate` first, then the same call (which provisions now) |
 | Runners | `GET /api/runners`, `DELETE /api/runners/:id`; `sandbox.runner` + `machine_offline` presence on the roster |
 
 `EventSource` cannot send an `Authorization` header, so the stream is read

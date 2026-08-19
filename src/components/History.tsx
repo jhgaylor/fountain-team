@@ -119,7 +119,7 @@ export function History({
                 type="button"
                 className="secondary small"
                 onClick={() => onRetire(true)}
-                title="End the current conversation and shut down its computer; it stays here and the next message starts a fresh one on a new computer"
+                title="End the current conversation and shut down its computer; it stays here and a new computer starts now for the new thread"
               >
                 Fresh thread on a new computer…
               </button>

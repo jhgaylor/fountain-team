@@ -323,7 +323,7 @@ function RowMenu({
       <button role="menuitem" onClick={() => onAction("retire")} title="Retire this conversation and start a new one on the same computer — files and tools stay, the context is fresh. The thread stays in History.">
         Start a fresh thread…
       </button>
-      <button role="menuitem" onClick={() => onAction("retire-new")} title="End this conversation and shut down its computer; the next message starts a fresh one on a new computer. The thread stays in History.">
+      <button role="menuitem" onClick={() => onAction("retire-new")} title="End this conversation and shut down its computer; a new computer starts now for the new thread. The old one stays in History.">
         Fresh thread on a new computer…
       </button>
       <button role="menuitem" onClick={() => onAction("open")}>
