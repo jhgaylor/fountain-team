@@ -751,6 +751,10 @@ export function TurnView({
   const inFlight = turn.status === "pending" || turn.status === "running";
   const failed = turn.status === "failed" || turn.status === "cancelled";
   const usage = formatUsage(turn.usage);
+  // The reply's last text bubble wears the time its last chunk landed, like
+  // the user's bubble does; earlier bubbles keep theirs on hover so a long
+  // text → tool → text turn isn't a column of clocks.
+  const lastText = !inFlight ? items.map((it) => it.kind).lastIndexOf("text") : -1;
   return (
     <div className={`turn ${highlighted ? "highlight" : ""}`} data-turn-id={turn.id}>
       <div className="bubble you">
@@ -759,7 +763,7 @@ export function TurnView({
         <div className="meta">{formatTime(turn.inserted_at)}</div>
       </div>
       {items.map((item, i) => {
-        if (item.kind !== "tools") return <BlockView key={i} block={item} />;
+        if (item.kind !== "tools") return <BlockView key={i} block={item} stamp={i === lastText ? "show" : "hover"} />;
         const { verb, what, running } = toolsLabel(item.tools);
         const single = item.tools.length === 1 ? item.tools[0]! : null;
         const dur = single ? duration(single.startedAt, single.endedAt) : null;
@@ -835,16 +839,24 @@ function TurnImages({ client, conversationId, turn }: { client: FountainClient; 
   );
 }
 
-function BlockView({ block }: { block: Exclude<FeedItem, { kind: "tools" }> | Block }) {
+function BlockView({ block, stamp = "hover" }: { block: Exclude<FeedItem, { kind: "tools" }> | Block; stamp?: "show" | "hover" }) {
   switch (block.kind) {
-    case "text":
+    case "text": {
+      const at = block.endedAt;
+      const title = at ? `Received ${new Date(at).toLocaleString()}` : undefined;
       return (
-        <div className="bubble them">
+        <div className="bubble them" title={stamp === "hover" ? title : undefined}>
           <div className="body">
             <Markdown text={block.body} />
           </div>
+          {stamp === "show" && at && (
+            <div className="meta" title={title}>
+              {formatTime(at)}
+            </div>
+          )}
         </div>
       );
+    }
     case "thinking":
       return (
         <details className="thinking">

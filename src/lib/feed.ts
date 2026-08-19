@@ -9,8 +9,8 @@ import type { Block } from "./acp";
 export type ToolBlock = Extract<Block, { kind: "tool" }>;
 
 export type FeedItem =
-  | { kind: "text"; body: string }
-  | { kind: "thinking"; body: string }
+  | { kind: "text"; body: string; startedAt: string | null; endedAt: string | null }
+  | { kind: "thinking"; body: string; startedAt: string | null; endedAt: string | null }
   | { kind: "tools"; tools: ToolBlock[] }
   | { kind: "raw"; body: string };
 
@@ -23,10 +23,10 @@ export function groupBlocks(blocks: Block[]): FeedItem[] {
       else out.push({ kind: "tools", tools: [b] });
     } else if (b.kind === "text") {
       if (!b.body.trim()) continue;
-      out.push({ kind: "text", body: b.body });
+      out.push({ kind: "text", body: b.body, startedAt: b.startedAt, endedAt: b.endedAt });
     } else if (b.kind === "thinking") {
       if (!b.body.trim()) continue;
-      out.push({ kind: "thinking", body: b.body });
+      out.push({ kind: "thinking", body: b.body, startedAt: b.startedAt, endedAt: b.endedAt });
     } else {
       out.push({ kind: "raw", body: b.body });
     }

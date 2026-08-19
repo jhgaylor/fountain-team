@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { Block } from "./acp";
 import { duration, groupBlocks, relativeTime, toolsLabel } from "./feed";
 
+const text = (body: string): Block => ({ kind: "text", body, startedAt: null, endedAt: null });
+const thinking = (body: string): Block => ({ kind: "thinking", body, startedAt: null, endedAt: null });
+
 const tool = (name: string, status: "running" | "done" | "error" = "done", summary = ""): Block => ({
   kind: "tool",
   id: name,
@@ -16,11 +19,11 @@ const tool = (name: string, status: "running" | "done" | "error" = "done", summa
 describe("feed grouping", () => {
   test("folds consecutive tool calls between narration into one row", () => {
     const items = groupBlocks([
-      { kind: "text", body: "Let me look." },
+      text("Let me look."),
       tool("Read"),
       tool("Grep"),
       tool("Edit", "done", "lib/x.ex"),
-      { kind: "text", body: "Now the tests." },
+      text("Now the tests."),
       tool("Bash", "running", "mix test"),
     ]);
     expect(items.map((i) => i.kind)).toEqual(["text", "tools", "text", "tools"]);
@@ -30,7 +33,7 @@ describe("feed grouping", () => {
   });
 
   test("drops empty text, keeps thinking as its own item", () => {
-    const items = groupBlocks([{ kind: "text", body: "  \n" }, { kind: "thinking", body: "hm" }, tool("Read")]);
+    const items = groupBlocks([text("  \n"), thinking("hm"), tool("Read")]);
     expect(items.map((i) => i.kind)).toEqual(["thinking", "tools"]);
   });
 
