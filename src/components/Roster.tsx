@@ -7,7 +7,7 @@ import { Avatar } from "./Avatar";
 import { Menu } from "./Menu";
 import { markdownToText } from "../lib/markdown";
 
-export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove";
+export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove" | "rename" | "history";
 
 interface Props {
   client: FountainClient;
@@ -25,6 +25,7 @@ interface Props {
   onPalette: () => void;
   onExport: () => void;
   onShortcuts: () => void;
+  onRunners: () => void;
   connected: boolean;
 }
 
@@ -50,6 +51,7 @@ export function Roster({
   onPalette,
   onExport,
   onShortcuts,
+  onRunners,
   connected,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -138,6 +140,7 @@ export function Roster({
           onClose={() => setTeamMenu(null)}
           items={[
             { label: "⏰  Routines", onSelect: onRoutines },
+            { label: "🖥  Runners", onSelect: onRunners },
             { label: "⤓  Export team as a manifest", onSelect: onExport },
             { label: "⌨  Keyboard shortcuts", onSelect: onShortcuts },
             { label: "⚙  Settings", onSelect: onSettings, divider: true },
@@ -287,6 +290,12 @@ function RowMenu({
         {unread ? "Mark as read" : "Mark as unread"}
       </button>
       <hr />
+      <button role="menuitem" onClick={() => onAction("rename")}>
+        Rename…
+      </button>
+      <button role="menuitem" onClick={() => onAction("history")}>
+        History…
+      </button>
       <button role="menuitem" onClick={() => onAction("open")}>
         Open in Fountain
       </button>

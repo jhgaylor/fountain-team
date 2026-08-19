@@ -12,6 +12,8 @@ import { Palette, type PaletteChoice } from "./components/Palette";
 import { teamManifest } from "./lib/manifest";
 import { Onboarding } from "./components/Onboarding";
 import { Shortcuts } from "./components/Shortcuts";
+import { History } from "./components/History";
+import { Runners } from "./components/Runners";
 import { releaseImages, type OutgoingImage } from "./lib/images";
 import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
 import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
@@ -97,7 +99,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [team, setTeam] = useState<Teammate[]>([]);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(() => idFromHash());
-  const [page, setPage] = useState<"team" | "routines">(() => pageFromHash());
+  const [page, setPage] = useState<"team" | "routines" | "runners">(() => pageFromHash());
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [teamVersion, setTeamVersion] = useState(0);
   const [routinesFor, setRoutinesFor] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -184,6 +189,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       window.location.hash = agentId ? `#/team/${agentId}` : "";
       setPage("team");
       setSelectedId(agentId);
+      setRenaming(false);
       if (agentId && prefsRef.current.unread.includes(agentId)) {
         updatePrefs((p) => ({ ...p, unread: without(p.unread, agentId) }));
       }
@@ -316,6 +322,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           if (msg.id) lastEventId = msg.id;
           if (msg.event === "team") {
             void refreshTeam();
+            setTeamVersion((v) => v + 1);
             return;
           }
           if (msg.event === "schedule") {
@@ -403,6 +410,11 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     setRoutinesFor(forAgentId);
     window.location.hash = "#/routines";
     setPage("routines");
+  }, []);
+
+  const openRunners = useCallback(() => {
+    window.location.hash = "#/runners";
+    setPage("runners");
   }, []);
 
   // ── palette (⌘K) ──────────────────────────────────────────────────────────
@@ -493,12 +505,32 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         case "routines":
           openRoutines();
           break;
+        case "runners":
+          openRunners();
+          break;
         case "export":
           void exportTeam();
           break;
       }
     },
-    [select, openHit, openRoutines, exportTeam],
+    [select, openHit, openRoutines, openRunners, exportTeam],
+  );
+
+  const renameTeammate = useCallback(
+    async (agentId: string, name: string | null) => {
+      const before = teamRef.current.find((t) => t.agent_id === agentId);
+      if (!before) return;
+      const optimistic = name ?? before.agent.name;
+      setTeam((ts) => ts.map((t) => (t.agent_id === agentId ? { ...t, name: optimistic } : t)));
+      try {
+        const updated = await client.renameTeammate(agentId, name);
+        setTeam((ts) => ts.map((t) => (t.agent_id === agentId ? { ...t, name: updated.name } : t)));
+      } catch (err) {
+        setTeam((ts) => ts.map((t) => (t.agent_id === agentId ? { ...t, name: before.name } : t)));
+        toast(describeError(err), "error");
+      }
+    },
+    [client, toast],
   );
 
   // ── actions ───────────────────────────────────────────────────────────────
@@ -627,9 +659,17 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         case "remove":
           removeTeammate(agentId);
           break;
+        case "rename":
+          select(agentId);
+          setRenaming(true);
+          break;
+        case "history":
+          select(agentId);
+          setHistoryFor(agentId);
+          break;
       }
     },
-    [team, client, updatePrefs, removeTeammate, toast],
+    [team, client, updatePrefs, removeTeammate, toast, select],
   );
 
   const orderedTeam = useMemo(() => sortPinnedFirst(team, prefs.pinned), [team, prefs.pinned]);
@@ -638,7 +678,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const onTeamIds = useMemo(() => new Set(team.map((t) => t.agent_id)), [team]);
 
   return (
-    <div className={`app ${selected || page === "routines" ? "thread-open" : ""}`}>
+    <div className={`app ${selected || page !== "team" ? "thread-open" : ""}`}>
       <Roster
         client={client}
         teammates={orderedTeam}
@@ -655,9 +695,12 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         onPalette={() => setPaletteOpen(true)}
         onExport={() => void exportTeam()}
         onShortcuts={() => setShortcutsOpen(true)}
+        onRunners={openRunners}
         connected={connected}
       />
-      {page === "routines" ? (
+      {page === "runners" ? (
+        <Runners client={client} onBack={() => select(null)} toast={toast} fountainUrl={client.baseUrl} refreshKey={teamVersion} />
+      ) : page === "routines" ? (
         <Routines
           client={client}
           teammates={orderedTeam}
@@ -684,6 +727,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onBack={() => select(null)}
           onError={(text) => toast(text, "error")}
           onRoutines={() => openRoutines(selected.agent_id)}
+          onHistory={() => setHistoryFor(selected.agent_id)}
+          onRename={(name) => renameTeammate(selected.agent_id, name)}
+          renaming={renaming}
+          onRenamingChange={setRenaming}
           focusTurnId={focusTurnId}
           onFocused={() => setFocusTurnId(null)}
           fountainUrl={client.baseUrl}
@@ -696,6 +743,18 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         </section>
       )}
       {shortcutsOpen && <Shortcuts onClose={() => setShortcutsOpen(false)} />}
+      {historyFor && team.find((t) => t.agent_id === historyFor) && (
+        <History
+          client={client}
+          teammate={team.find((t) => t.agent_id === historyFor)!}
+          onClose={() => setHistoryFor(null)}
+          onOpenCurrent={() => {
+            select(historyFor);
+            setHistoryFor(null);
+          }}
+          fountainUrl={client.baseUrl}
+        />
+      )}
       {paletteOpen && <Palette client={client} teammates={orderedTeam} onChoose={onPaletteChoice} onClose={() => setPaletteOpen(false)} />}
       {adding && (
         <AddDialog
@@ -724,8 +783,10 @@ function idFromHash(): string | null {
   return m?.[1] ?? null;
 }
 
-function pageFromHash(): "team" | "routines" {
-  return window.location.hash === "#/routines" ? "routines" : "team";
+function pageFromHash(): "team" | "routines" | "runners" {
+  if (window.location.hash === "#/routines") return "routines";
+  if (window.location.hash === "#/runners") return "runners";
+  return "team";
 }
 
 function byActivity(a: Teammate, b: Teammate): number {
