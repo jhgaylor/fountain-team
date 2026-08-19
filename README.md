@@ -139,7 +139,8 @@ do, each on the public API:
 - **Runners** (team menu ⋯): your own machines serving as a teammate's
   computer (Fountain's self-hosted runner): which are online, forget one,
   how to start `fountain runner`. To put a teammate on one: right-click them
-  → **Run on your own machine…** (Customize → Computer), then restart their
+  → **Run on your own machine…** (Customize → Computer; it reads **Run in the
+  cloud…** for one already on a machine), then restart their
   computer. A teammate on a runner shows "on
   <machine> · path" in the header; when that machine is off its presence is
   *machine offline* and messages queue until the runner reconnects.
