@@ -7,6 +7,7 @@
 import type { Catalog } from "../lib/brain";
 import type {
   Agent,
+  CommsStatus,
   Conversation,
   Environment,
   EnvironmentSecret,
@@ -33,8 +34,22 @@ export class ApiError extends Error {
     public code: string | null,
     message: string,
     public retryAfter: number | null = null,
+    /** the parsed error body, for callers that read more than `error`/`message` (field errors, `channel`) */
+    public body: Record<string, unknown> | null = null,
   ) {
     super(message);
+  }
+
+  /** `errors: {field: [msg, …]}` as the server sends a 422 — empty when there is none. */
+  get fieldErrors(): Record<string, string[]> {
+    const e = this.body?.errors;
+    if (!e || typeof e !== "object" || Array.isArray(e)) return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(e as Record<string, unknown>)) {
+      if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string");
+      else if (typeof v === "string") out[k] = [v];
+    }
+    return out;
   }
 }
 
@@ -94,6 +109,38 @@ export class FountainClient {
   async freshConversation(agentId: string): Promise<Teammate> {
     const r = await this.json<{ data: Teammate }>("POST", `/api/team/${agentId}/conversations`);
     return r.data;
+  }
+
+  // ── contact: a teammate's own email address + phone number ──────────────
+
+  /** Whether this account may give teammates an email + phone (`enabled`) and whether the instance can (`configured`). */
+  async commsStatus(): Promise<CommsStatus> {
+    return (await this.json<{ data: CommsStatus }>("GET", "/api/team/comms")).data;
+  }
+
+  /**
+   * Buy an AgentMail inbox and an AgentPhone number for this teammate (billed; all or nothing).
+   * `promptFromNumber` is the owner's phone: texts from it to the new number become prompts.
+   * 404 `team_comms_not_enabled`, 503 `team_comms_not_configured`, 409 `contact_already_provisioned`,
+   * 422 (`fieldErrors.prompt_from_number`; nothing bought), 502 `provider_error` (`body.channel`).
+   */
+  async provisionContact(agentId: string, promptFromNumber: string): Promise<Teammate> {
+    const r = await this.json<{ data: Teammate }>("POST", `/api/team/${agentId}/contact`, { prompt_from_number: promptFromNumber });
+    return r.data;
+  }
+
+  /**
+   * Change whose texts reach the teammate (PATCH): the new number replaces `prompt_from_number`
+   * and clears an opt-out. 200 with the teammate; 422 (`fieldErrors.prompt_from_number`); 404 without a contact.
+   */
+  async changeContactNumber(agentId: string, promptFromNumber: string): Promise<Teammate> {
+    const r = await this.json<{ data: Teammate }>("PATCH", `/api/team/${agentId}/contact`, { prompt_from_number: promptFromNumber });
+    return r.data;
+  }
+
+  /** Release the teammate's inbox and number upstream and forget them. 404 without one, 502 `provider_error`. */
+  releaseContact(agentId: string): Promise<void> {
+    return this.json<void>("DELETE", `/api/team/${agentId}/contact`);
   }
 
   // ── runners ─────────────────────────────────────────────────────────────
@@ -372,7 +419,7 @@ export class FountainClient {
       const message =
         typeof obj.message === "string" ? obj.message : code ?? `${res.status} ${res.statusText}`;
       const ra = res.headers.get("retry-after");
-      throw new ApiError(res.status, code, message, ra ? Number(ra) : null);
+      throw new ApiError(res.status, code, message, ra ? Number(ra) : null, parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null);
     }
     return parsed as T;
   }
@@ -402,6 +449,17 @@ export function describeError(err: unknown): string {
         return "Vault not found.";
       case "not_found":
         return "Not found.";
+      case "team_comms_not_enabled":
+        return "Giving teammates an email and phone is not enabled for this account.";
+      case "team_comms_not_configured":
+        return "This instance has no AgentMail/AgentPhone keys configured.";
+      case "contact_already_provisioned":
+        return "They already have an email and phone.";
+      case "provider_error": {
+        const ch = err.body?.channel;
+        const who = ch === "email" ? "AgentMail" : ch === "phone" ? "AgentPhone" : "AgentMail/AgentPhone";
+        return `${who} refused: ${err.message}`;
+      }
       default:
         if (err.status === 401) return "That API key was not accepted.";
         if (err.status === 429) return "Too many requests — slow down a little.";

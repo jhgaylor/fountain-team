@@ -9,7 +9,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
-import type { LogEvent, Teammate, TreeNode, Turn } from "../api/types";
+import type { CommsStatus, LogEvent, Teammate, TreeNode, Turn } from "../api/types";
 import type { FountainClient } from "../api/client";
 import { blocksForTurn, type Block } from "../lib/acp";
 import { loadDraft, saveDraft } from "../lib/drafts";
@@ -20,6 +20,8 @@ import { isNearBottom, TURN_WINDOW, windowTail } from "../lib/scroll";
 import { formatTime } from "./Roster";
 import { Markdown } from "./Markdown";
 import { Profile } from "./Profile";
+import { ContactLine } from "./ContactLine";
+import { contactOffer } from "../lib/contact";
 import { Activity, type ActivityFocus } from "./Activity";
 import { groupBlocks, toolsLabel, duration, type FeedItem } from "../lib/feed";
 
@@ -59,6 +61,11 @@ interface Props {
   onAgentChanged: () => void;
   /** this is the only teammate on the team (the /create-team tip shows) */
   onlyTeammate: boolean;
+  /** whether teammates can be given an email + phone here (null: not offered) */
+  comms: CommsStatus | null;
+  onGiveContact: () => void;
+  onReleaseContact: () => void;
+  onChangeContactNumber: () => void;
   fountainUrl: string;
 }
 
@@ -90,6 +97,10 @@ export function Thread({
   onActivityChange,
   onAgentChanged,
   onlyTeammate,
+  comms,
+  onGiveContact,
+  onReleaseContact,
+  onChangeContactNumber,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
@@ -470,7 +481,43 @@ export function Thread({
         </div>
       </header>
 
-      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} onAgentChanged={onAgentChanged} onRetire={() => { setProfileOpen(false); onRetire(); }} onRunners={() => { setProfileOpen(false); onRunners(); }} />}
+      {teammate.contact && (
+        <div className="contact-bar" role="region" aria-label={`${teammate.name}'s email and phone`}>
+          <ContactLine contact={teammate.contact} compact onChangeNumber={onChangeContactNumber} />
+          <button type="button" className="secondary small" onClick={onReleaseContact} title="Release the inbox and number upstream; mail and texts to them stop">
+            Release…
+          </button>
+        </div>
+      )}
+      {profileOpen && (
+        <Profile
+          client={client}
+          teammate={teammate}
+          onClose={() => setProfileOpen(false)}
+          onAgentChanged={onAgentChanged}
+          onRetire={() => {
+            setProfileOpen(false);
+            onRetire();
+          }}
+          onRunners={() => {
+            setProfileOpen(false);
+            onRunners();
+          }}
+          contactOffer={contactOffer(comms, teammate)}
+          onGiveContact={() => {
+            setProfileOpen(false);
+            onGiveContact();
+          }}
+          onReleaseContact={() => {
+            setProfileOpen(false);
+            onReleaseContact();
+          }}
+          onChangeContactNumber={() => {
+            setProfileOpen(false);
+            onChangeContactNumber();
+          }}
+        />
+      )}
       {treeOpen && spawned.length > 0 && (
         <div className="spawned">
           <div className="spawned-head small muted">Started by {teammate.name} — sub-conversations in this thread's spawn tree</div>
