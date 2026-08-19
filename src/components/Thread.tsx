@@ -20,8 +20,8 @@ import { isNearBottom, TURN_WINDOW, windowTail } from "../lib/scroll";
 import { formatTime } from "./Roster";
 import { Markdown } from "./Markdown";
 import { Profile } from "./Profile";
-import { Activity, ToolsRow } from "./Activity";
-import { groupBlocks, type FeedItem } from "../lib/feed";
+import { Activity, type ActivityFocus } from "./Activity";
+import { groupBlocks, toolsLabel, duration, type FeedItem } from "../lib/feed";
 
 interface Props {
   client: FountainClient;
@@ -170,6 +170,14 @@ export function Thread({
 
   // The spawn tree: what this teammate started (sub-conversations over the API).
   const [profileOpen, setProfileOpen] = useState(false);
+  const [activityFocus, setActivityFocus] = useState<ActivityFocus | null>(null);
+  const openActivityAt = useCallback(
+    (turnId: string, index: number) => {
+      onActivityChange(true);
+      setActivityFocus({ turnId, index, nonce: Date.now() });
+    },
+    [onActivityChange],
+  );
   const [nameDraft, setNameDraft] = useState(teammate.name);
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -479,6 +487,7 @@ export function Thread({
               events={eventsByTurn.get(turn.id) ?? []}
               runtime={conv.runtime}
               highlighted={highlight === turn.id}
+              onOpenActivity={(index) => openActivityAt(turn.id, index)}
             />
           ))}
           {queued.map((q) => (
@@ -565,7 +574,9 @@ export function Thread({
         </div>
       </form>
       </div>
-      {activityOpen && <Activity teammate={teammate} turns={turns} events={events} onClose={() => onActivityChange(false)} />}
+      {activityOpen && (
+        <Activity teammate={teammate} turns={turns} events={events} focus={activityFocus} onClose={() => onActivityChange(false)} />
+      )}
       </div>
     </section>
   );
@@ -607,6 +618,7 @@ export function TurnView({
   events,
   runtime,
   highlighted,
+  onOpenActivity,
 }: {
   client: FountainClient;
   conversationId: string;
@@ -614,6 +626,8 @@ export function TurnView({
   events: LogEvent[];
   runtime: string;
   highlighted: boolean;
+  /** the chat shows a tool run as a status line; clicking it opens the feed at that run */
+  onOpenActivity?: (itemIndex: number) => void;
 }) {
   const blocks = useMemo(() => blocksForTurn(events, runtime), [events, runtime]);
   const items = useMemo(() => groupBlocks(blocks), [blocks]);
@@ -627,15 +641,29 @@ export function TurnView({
         {turn.prompt && <div className="body">{turn.prompt}</div>}
         <div className="meta">{formatTime(turn.inserted_at)}</div>
       </div>
-      {items.map((item, i) =>
-        item.kind === "tools" ? (
-          <div className="bubble-aside" key={i}>
-            <ToolsRow tools={item.tools} />
-          </div>
-        ) : (
-          <BlockView key={i} block={item} />
-        ),
-      )}
+      {items.map((item, i) => {
+        if (item.kind !== "tools") return <BlockView key={i} block={item} />;
+        const { verb, what, running } = toolsLabel(item.tools);
+        const single = item.tools.length === 1 ? item.tools[0]! : null;
+        const dur = single ? duration(single.startedAt, single.endedAt) : null;
+        const failed = item.tools.some((t) => t.status === "error");
+        return (
+          <button
+            key={i}
+            type="button"
+            className={`tools-hint ${running ? "running" : ""} ${failed ? "failed" : ""}`}
+            onClick={onOpenActivity ? () => onOpenActivity(i) : undefined}
+            disabled={!onOpenActivity}
+            title={onOpenActivity ? "Open in Activity" : undefined}
+          >
+            <span className="verb">{verb}</span> <span className="what">{what}</span>
+            {dur && <span className="dur">{dur}</span>}
+            {running && <span className="dots" aria-hidden />}
+            {failed && <span className="tool-status">✕</span>}
+            {onOpenActivity && <span className="chev">›</span>}
+          </button>
+        );
+      })}
       {inFlight && blocks.length === 0 && (
         <div className="bubble them typing">
           <span />
