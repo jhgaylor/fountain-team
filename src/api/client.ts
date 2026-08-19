@@ -255,6 +255,7 @@ export class FountainClient {
       skills: Skill[];
       mcp_servers: Record<string, McpServer>;
       environment_id: string | null;
+      sandbox_provider: string | null;
     }>,
   ): Promise<Agent> {
     return this.json<{ data: Agent }>("PUT", `/api/agents/${agentId}`, input).then((r) => r.data);

@@ -12,6 +12,8 @@ export interface Catalog {
   runtimes: string[];
   models: Record<string, string[]>;
   avatar?: { bases: string[]; moods: string[] };
+  /** which sandbox providers this Fountain can place a computer on, and the one it uses by default */
+  sandbox_providers?: { enabled: string[]; default: string };
 }
 
 export interface Brain {

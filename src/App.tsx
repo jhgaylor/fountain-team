@@ -105,6 +105,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [selectedId, setSelectedId] = useState<string | null>(() => idFromHash());
   const [page, setPage] = useState<"team" | "routines" | "runners">(() => pageFromHash());
   const [historyFor, setHistoryFor] = useState<string | null>(null);
+  /** a row-menu "Customize…" for the selected teammate, consumed by Thread */
+  const [customizeRequested, setCustomizeRequested] = useState(false);
+  const onCustomizeOpened = useCallback(() => setCustomizeRequested(false), []);
   const [renaming, setRenaming] = useState(false);
   const [teamVersion, setTeamVersion] = useState(0);
   const [routinesFor, setRoutinesFor] = useState<string | null>(null);
@@ -781,6 +784,11 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           select(agentId);
           setHistoryFor(agentId);
           break;
+        case "customize":
+        case "computer":
+          select(agentId);
+          setCustomizeRequested(true);
+          break;
         case "retire":
           retireThread(agentId);
           break;
@@ -852,6 +860,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onRoutines={() => openRoutines(selected.agent_id)}
           onHistory={() => setHistoryFor(selected.agent_id)}
           onRetire={() => retireThread(selected.agent_id, { newComputer: true })}
+          onRunners={openRunners}
+          customizeRequested={customizeRequested}
+          onCustomizeOpened={onCustomizeOpened}
           onRename={(name) => renameTeammate(selected.agent_id, name)}
           renaming={renaming}
           onRenamingChange={setRenaming}

@@ -41,6 +41,11 @@ interface Props {
   onHistory: () => void;
   /** End the current computer so the next message starts a fresh one (skills/apps land then). */
   onRetire: () => void;
+  /** Open the Runners page (how to start `fountain runner`). */
+  onRunners: () => void;
+  /** Something outside (the row menu) asked for the customize panel; cleared with onCustomizeOpened. */
+  customizeRequested: boolean;
+  onCustomizeOpened: () => void;
   onRename: (name: string | null) => Promise<void>;
   /** start in the rename editor (from the row menu) */
   renaming: boolean;
@@ -71,6 +76,9 @@ export function Thread({
   onRoutines,
   onHistory,
   onRetire,
+  onRunners,
+  customizeRequested,
+  onCustomizeOpened,
   onRename,
   renaming,
   onRenamingChange,
@@ -184,6 +192,11 @@ export function Thread({
 
   // The spawn tree: what this teammate started (sub-conversations over the API).
   const [profileOpen, setProfileOpen] = useState(false);
+  useEffect(() => {
+    if (!customizeRequested) return;
+    setProfileOpen(true);
+    onCustomizeOpened();
+  }, [customizeRequested, onCustomizeOpened]);
   // "Loading…" only after a beat: a fast load should paint the thread, not a blink of text
   const [slowLoad, setSlowLoad] = useState(false);
   useEffect(() => {
@@ -449,7 +462,7 @@ export function Thread({
         </div>
       </header>
 
-      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} onAgentChanged={onAgentChanged} onRetire={() => { setProfileOpen(false); onRetire(); }} />}
+      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} onAgentChanged={onAgentChanged} onRetire={() => { setProfileOpen(false); onRetire(); }} onRunners={() => { setProfileOpen(false); onRunners(); }} />}
       {treeOpen && spawned.length > 0 && (
         <div className="spawned">
           <div className="spawned-head small muted">Started by {teammate.name} — sub-conversations in this thread's spawn tree</div>
