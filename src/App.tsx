@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FountainClient, describeError } from "./api/client";
+import { ApiError, FountainClient, describeError } from "./api/client";
 import type { LogEvent, TeamEvent, Teammate, Turn } from "./api/types";
 import { clearSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import { SettingsScreen } from "./components/Settings";
 import { completeLoginIfCallback, revoke } from "./lib/oauth";
-import { Roster } from "./components/Roster";
+import { Roster, type RowAction } from "./components/Roster";
 import { Thread } from "./components/Thread";
 import { AddDialog } from "./components/AddDialog";
+import { releaseImages, type OutgoingImage } from "./lib/images";
+import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
+import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
+import { drain, enqueue, newQueuedId, removeQueued, withoutConversation, type QueuedMessage } from "./lib/queue";
 
 const THREAD_STREAMS = ["acp", "stdout", "stage"];
 
@@ -94,11 +98,30 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [adding, setAdding] = useState(false);
   const [connected, setConnected] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
+  const [notifyPerm, setNotifyPerm] = useState<NotifyPermission>(() => notifyPermission());
+  // Messages waiting for a busy teammate, keyed by agent id (a teammate's
+  // conversation can be replaced under them; the queue follows the person).
+  const [queues, setQueues] = useState<ReadonlyMap<string, readonly QueuedMessage[]>>(() => new Map());
 
   const selected = team.find((t) => t.agent_id === selectedId) ?? null;
   const selectedConvId = selected?.conversation.id ?? null;
   const selectedConvRef = useRef<string | null>(null);
   selectedConvRef.current = selectedConvId;
+  const teamRef = useRef<Teammate[]>([]);
+  teamRef.current = team;
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  const queuesRef = useRef(queues);
+  queuesRef.current = queues;
+
+  const updatePrefs = useCallback((f: (p: Prefs) => Prefs) => {
+    setPrefs((p) => {
+      const next = f(p);
+      savePrefs(next);
+      return next;
+    });
+  }, []);
 
   const toast = useCallback((text: string, kind: Toast["kind"] = "info") => {
     const id = Date.now() + Math.random();
@@ -142,10 +165,16 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const select = useCallback((agentId: string | null) => {
-    window.location.hash = agentId ? `#/team/${agentId}` : "";
-    setSelectedId(agentId);
-  }, []);
+  const select = useCallback(
+    (agentId: string | null) => {
+      window.location.hash = agentId ? `#/team/${agentId}` : "";
+      setSelectedId(agentId);
+      if (agentId && prefsRef.current.unread.includes(agentId)) {
+        updatePrefs((p) => ({ ...p, unread: without(p.unread, agentId) }));
+      }
+    },
+    [updatePrefs],
+  );
 
   useEffect(() => {
     if (!selectedConvId) {
@@ -173,9 +202,72 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   }, [client, selectedConvId, toast]);
 
   // On a phone, the thread has no room for the roster: only one shows.
+  const unreadCount = team.filter((t) => t.agent_id !== selectedId && (t.unread || prefs.unread.includes(t.agent_id))).length;
   useEffect(() => {
-    document.title = selected ? `${selected.name} · Team` : "Team";
-  }, [selected]);
+    const base = selected ? `${selected.name} · Team` : "Team";
+    document.title = unreadCount > 0 ? `(${unreadCount}) ${base}` : base;
+  }, [selected, unreadCount]);
+
+  // ── queue-and-steer ───────────────────────────────────────────────────────
+
+  const flushing = useRef(new Set<string>());
+
+  /** Send everything queued for a teammate as one turn, now that they are free. */
+  const flush = useCallback(
+    async (agentId: string) => {
+      const d = drain(queuesRef.current, agentId);
+      if (!d || flushing.current.has(agentId)) return;
+      flushing.current.add(agentId);
+      try {
+        const before = teamRef.current.find((t) => t.agent_id === agentId)?.conversation.id;
+        const r = await client.sendMessage(agentId, d.prompt, d.images);
+        setQueues((q) => withoutConversation(q, agentId));
+        releaseImages(d.images);
+        if (r.conversation_id !== before) await refreshTeam();
+      } catch (err) {
+        // still busy (a new turn started first) — keep it; the next turn end retries.
+        if (err instanceof ApiError && (err.code === "conversation_busy" || err.status === 503)) return;
+        toast(describeError(err), "error");
+      } finally {
+        flushing.current.delete(agentId);
+      }
+    },
+    [client, refreshTeam, toast],
+  );
+
+  // A safety net for the event path: after any roster refresh, a free
+  // teammate with a queue gets it (a reconnect can miss the turn-end event).
+  useEffect(() => {
+    for (const t of team) {
+      if (!queues.get(t.agent_id)?.length) continue;
+      const busy = t.presence.state === "working" || t.presence.state === "starting" || t.conversation.status === "running";
+      if (!busy) void flush(t.agent_id);
+    }
+  }, [team, queues, flush]);
+
+  const notifyReply = useCallback(
+    (agentId: string, conversationId: string) => {
+      const p = prefsRef.current;
+      if (
+        !shouldNotify({
+          enabled: p.notify,
+          permission: notifyPermission(),
+          muted: p.muted.includes(agentId),
+          isOpen: conversationId === selectedConvRef.current,
+          hidden: document.hidden,
+        })
+      )
+        return;
+      const t = teamRef.current.find((x) => x.agent_id === agentId);
+      showReplyNotification({
+        name: t?.name ?? "Teammate",
+        body: t?.preview?.kind === "them" && t.preview.text ? t.preview.text : "replied",
+        conversationId,
+        onClick: () => select(agentId),
+      });
+    },
+    [select],
+  );
 
   // ── the team stream ───────────────────────────────────────────────────────
 
@@ -235,7 +327,16 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         }
       }
       if (ev.kind === "stage") {
-        scheduleRefresh();
+        if (ev.stage === "turn" && ev.state !== "started" && ev.agent_id) {
+          const agentId = ev.agent_id;
+          // Re-list first so the preview carries the reply, then notify and drain.
+          void refreshTeam().then(() => {
+            notifyReply(agentId, ev.conversation_id);
+            void flush(agentId);
+          });
+        } else {
+          scheduleRefresh();
+        }
       } else if (ev.kind === "output") {
         // Someone else's row: bump it and show "typing…" without a query.
         setTeam((ts) =>
@@ -260,26 +361,67 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       stopped = true;
       ctrl.abort();
     };
-  }, [client, refreshTeam, scheduleRefresh]);
+  }, [client, refreshTeam, scheduleRefresh, flush, notifyReply]);
 
   // ── actions ───────────────────────────────────────────────────────────────
 
   const onSend = useCallback(
-    async (text: string) => {
-      if (!selected) return;
+    async (text: string, images: OutgoingImage[]): Promise<"sent" | "queued"> => {
+      if (!selected) throw new Error("no teammate selected");
+      const agentId = selected.agent_id;
+      const queue = () => {
+        setQueues((q) => enqueue(q, agentId, { id: newQueuedId(), text, images, at: new Date().toISOString() }));
+        return "queued" as const;
+      };
+      const busy =
+        selected.presence.state === "working" || selected.presence.state === "starting" || selected.conversation.status === "running";
+      // Anything already queued goes first, so a new note joins the line.
+      if (busy || queues.get(agentId)?.length) return queue();
       try {
-        const r = await client.sendMessage(selected.agent_id, text);
+        const r = await client.sendMessage(agentId, text, images);
+        releaseImages(images);
         if (r.conversation_id !== selected.conversation.id) {
           // The old computer was gone; a fresh conversation is the thread now.
           await refreshTeam();
         }
+        return "sent";
       } catch (err) {
+        // The roster was stale: they are busy after all. Queue instead of bouncing.
+        if (err instanceof ApiError && (err.code === "conversation_busy" || err.status === 503)) {
+          void refreshTeam();
+          return queue();
+        }
         toast(describeError(err), "error");
         throw err;
       }
     },
-    [client, selected, refreshTeam, toast],
+    [client, selected, queues, refreshTeam, toast],
   );
+
+  const onCancelQueued = useCallback(
+    (id: string) => {
+      if (!selected) return;
+      const item = queues.get(selected.agent_id)?.find((m) => m.id === id);
+      if (item) releaseImages(item.images);
+      setQueues((q) => removeQueued(q, selected.agent_id, id));
+    },
+    [selected, queues],
+  );
+
+  const onToggleNotify = useCallback(async () => {
+    if (prefs.notify) {
+      updatePrefs((p) => ({ ...p, notify: false }));
+      return;
+    }
+    const perm = await requestNotifyPermission();
+    setNotifyPerm(perm);
+    if (perm === "granted") {
+      updatePrefs((p) => ({ ...p, notify: true }));
+      toast("You'll be notified when a teammate replies");
+    } else if (perm === "denied") {
+      toast("Notifications are blocked for this site in your browser", "error");
+    }
+  }, [prefs.notify, updatePrefs, toast]);
 
   const onInterrupt = useCallback(() => {
     if (!selectedConvId) return;
@@ -289,18 +431,70 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       .catch((err) => toast(describeError(err), "error"));
   }, [client, selectedConvId, toast]);
 
+  const removeTeammate = useCallback(
+    (agentId: string) => {
+      const t = team.find((x) => x.agent_id === agentId);
+      if (!t) return;
+      if (!window.confirm(`Remove ${t.name} from the team? Their computer is shut down; the conversation stays in your Fountain history.`)) return;
+      client
+        .removeTeammate(agentId)
+        .then(() => {
+          toast("Removed from the team");
+          if (selectedId === agentId) select(null);
+          setQueues((q) => withoutConversation(q, agentId));
+          return refreshTeam();
+        })
+        .catch((err) => toast(describeError(err), "error"));
+    },
+    [client, team, selectedId, refreshTeam, select, toast],
+  );
+
   const onRemove = useCallback(() => {
-    if (!selected) return;
-    if (!window.confirm(`Remove ${selected.name} from the team? Their computer is shut down; the conversation stays in your Fountain history.`)) return;
-    client
-      .removeTeammate(selected.agent_id)
-      .then(() => {
-        toast("Removed from the team");
-        select(null);
-        return refreshTeam();
-      })
-      .catch((err) => toast(describeError(err), "error"));
-  }, [client, selected, refreshTeam, select, toast]);
+    if (selected) removeTeammate(selected.agent_id);
+  }, [selected, removeTeammate]);
+
+  const onRowAction = useCallback(
+    (agentId: string, action: RowAction) => {
+      const t = team.find((x) => x.agent_id === agentId);
+      switch (action) {
+        case "pin":
+          updatePrefs((p) => ({ ...p, pinned: toggleIn(p.pinned, agentId) }));
+          break;
+        case "mute":
+          updatePrefs((p) => ({ ...p, muted: toggleIn(p.muted, agentId) }));
+          break;
+        case "unread":
+          updatePrefs((p) => ({ ...p, unread: p.unread.includes(agentId) ? p.unread : [...p.unread, agentId] }));
+          break;
+        case "read":
+          updatePrefs((p) => ({ ...p, unread: without(p.unread, agentId) }));
+          if (t?.unread) {
+            client
+              .markRead(t.conversation.id)
+              .then(() => setTeam((ts) => ts.map((x) => (x.agent_id === agentId ? { ...x, unread: false } : x))))
+              .catch((err) => toast(describeError(err), "error"));
+          }
+          break;
+        case "copy-id":
+          if (t) {
+            navigator.clipboard
+              .writeText(t.conversation.id)
+              .then(() => toast("Conversation id copied"))
+              .catch(() => toast(t.conversation.id));
+          }
+          break;
+        case "open":
+          if (t) window.open(`${client.baseUrl}/conversations/${t.conversation.id}`, "_blank", "noopener");
+          break;
+        case "remove":
+          removeTeammate(agentId);
+          break;
+      }
+    },
+    [team, client, updatePrefs, removeTeammate, toast],
+  );
+
+  const orderedTeam = useMemo(() => sortPinnedFirst(team, prefs.pinned), [team, prefs.pinned]);
 
   const onTeamIds = useMemo(() => new Set(team.map((t) => t.agent_id)), [team]);
 
@@ -308,24 +502,32 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     <div className={`app ${selected ? "thread-open" : ""}`}>
       <Roster
         client={client}
-        teammates={team}
+        teammates={orderedTeam}
         selectedId={selectedId}
+        prefs={prefs}
+        notifyPermission={notifyPerm}
         onSelect={select}
         onAdd={() => setAdding(true)}
         onSettings={onSettings}
         onSignOut={onSignOut}
+        onToggleNotify={() => void onToggleNotify()}
+        onRowAction={onRowAction}
         connected={connected}
       />
       {selected ? (
         <Thread
+          client={client}
           teammate={selected}
           turns={turns}
           events={events}
+          queued={queues.get(selected.agent_id) ?? []}
           loading={threadLoading}
           onSend={onSend}
+          onCancelQueued={onCancelQueued}
           onInterrupt={onInterrupt}
           onRemove={onRemove}
           onBack={() => select(null)}
+          onError={(text) => toast(text, "error")}
           fountainUrl={client.baseUrl}
         />
       ) : (
