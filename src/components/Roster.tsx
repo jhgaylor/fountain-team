@@ -7,7 +7,7 @@ import { Avatar } from "./Avatar";
 import { Menu } from "./Menu";
 import { markdownToText } from "../lib/markdown";
 
-export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove" | "rename" | "history";
+export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove" | "rename" | "history" | "retire";
 
 interface Props {
   client: FountainClient;
@@ -295,6 +295,9 @@ function RowMenu({
       </button>
       <button role="menuitem" onClick={() => onAction("history")}>
         History…
+      </button>
+      <button role="menuitem" onClick={() => onAction("retire")} title="End this conversation and its computer; the next message starts a fresh one. The thread stays in History.">
+        Start a fresh thread…
       </button>
       <button role="menuitem" onClick={() => onAction("open")}>
         Open in Fountain

@@ -176,6 +176,11 @@ export class FountainClient {
     return this.json<void>("POST", `/api/conversations/${conversationId}/read`);
   }
 
+  /** End the conversation and its computer; the teammate's next message opens a fresh one and this one joins its history. */
+  terminate(conversationId: string): Promise<unknown> {
+    return this.json("POST", `/api/conversations/${conversationId}/terminate`);
+  }
+
   interrupt(conversationId: string): Promise<unknown> {
     return this.json("POST", `/api/conversations/${conversationId}/interrupt`);
   }

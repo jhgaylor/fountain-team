@@ -82,7 +82,9 @@ do, each on the public API:
 - **Keyboard**: ⌘K search, Alt+↑/↓ to switch teammates, `?` for the list.
 - **Rename** a teammate (✎ by the name, or the row menu); empty resets to the
   agent's name. **History** (thread header / row menu): its previous
-  conversations — earlier computers' threads — readable in place.
+  conversations — earlier computers' threads — readable in place. **Start a
+  fresh thread…** (row menu / History) retires the current one: its computer
+  shuts down, the thread stays in History, the next message starts a new one.
 - **Runners** (team menu ⋯): your own machines serving as a teammate's
   computer (Fountain's self-hosted runner): which are online, forget one,
   how to start `fountain runner`. A teammate on a runner shows "on

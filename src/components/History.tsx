@@ -19,12 +19,14 @@ export function History({
   teammate,
   onClose,
   onOpenCurrent,
+  onRetire,
   fountainUrl,
 }: {
   client: FountainClient;
   teammate: Teammate;
   onClose: () => void;
   onOpenCurrent: () => void;
+  onRetire: () => void;
   fountainUrl: string;
 }) {
   const [rows, setRows] = useState<HistoryConversation[] | null>(null);
@@ -106,6 +108,13 @@ export function History({
             ))}
             {rows.length === 0 && <li className="muted">No conversations yet.</li>}
           </ul>
+        )}
+        {!open && rows && teammate.conversation.status !== "terminated" && (
+          <div className="row end">
+            <button type="button" className="secondary small" onClick={onRetire} title="End the current conversation and its computer; it stays here and the next message starts a fresh one">
+              Start a fresh thread…
+            </button>
+          </div>
         )}
         {open && <ReadOnlyThread client={client} conversation={open} />}
         {open && (
