@@ -664,31 +664,64 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     [client, team, selectedId, refreshTeam, select, toast],
   );
 
-  /** Retire the current thread: terminate its conversation (computer included); it stays in History and the next message opens a fresh one. */
+  /**
+   * Start a fresh thread with a teammate. By default they keep their computer: the current
+   * conversation is retired (it stays in History) and a new one opens on the same sandbox, so
+   * the next message starts with a clean context but the files and tools still there. With
+   * `newComputer`, the current conversation and its computer are terminated instead and the
+   * next message provisions a new one.
+   */
   const retireThread = useCallback(
-    (agentId: string) => {
+    (agentId: string, opts: { newComputer?: boolean } = {}) => {
       const t = team.find((x) => x.agent_id === agentId);
       if (!t) return;
-      if (t.conversation.status === "terminated") {
-        toast("That thread is already retired — the next message starts a fresh one");
+      if (opts.newComputer) {
+        if (t.conversation.status === "terminated") {
+          toast("That thread is already retired — the next message starts a fresh one");
+          return;
+        }
+        // A thread nothing has happened on yet has nothing to lose — no need to ask
+        // (customize → "restart their computer" is the usual way here).
+        if (
+          t.conversation.turn_count > 0 &&
+          !window.confirm(
+            `Start a fresh thread with ${t.name} on a new computer? This ends the current conversation and shuts down its computer (anything not committed or pushed from that computer is gone). The thread stays under History; the next message starts a new one.`,
+          )
+        )
+          return;
+        client
+          .terminate(t.conversation.id)
+          .then(() => {
+            toast(`Retired — ${t.name}'s next message starts a fresh computer`);
+            setQueues((q) => withoutConversation(q, agentId));
+            return refreshTeam();
+          })
+          .catch((err) => toast(describeError(err), "error"));
         return;
       }
-      // A thread nothing has happened on yet has nothing to lose — no need to ask.
+      const keeps = t.conversation.status !== "terminated" && t.conversation.status !== "failed";
       if (
-        t.conversation.turn_count > 0 &&
         !window.confirm(
-          `Start a fresh thread with ${t.name}? This ends the current conversation and shuts down its computer (anything not committed or pushed from that computer is gone). The thread stays under History; the next message starts a new one.`,
+          keeps
+            ? `Start a fresh thread with ${t.name}? The current conversation ends and stays under History. ${t.name} keeps the same computer — files and tools stay — and the next message begins the new thread with a clean slate.`
+            : `Start a fresh thread with ${t.name}? The old thread stays under History; a new computer is started for the new one.`,
         )
       )
         return;
       client
-        .terminate(t.conversation.id)
+        .freshConversation(agentId)
         .then(() => {
-          toast(`Retired — ${t.name}'s next message starts a fresh computer`);
+          toast(keeps ? `Fresh thread — ${t.name} is on the same computer` : `Fresh thread — starting ${t.name}'s computer`);
           setQueues((q) => withoutConversation(q, agentId));
           return refreshTeam();
         })
-        .catch((err) => toast(describeError(err), "error"));
+        .catch((err) => {
+          if (err instanceof ApiError && err.code === "conversation_busy") {
+            toast(`${t.name} is still working — interrupt or wait for the turn to end, then try again.`, "error");
+            return;
+          }
+          toast(describeError(err), "error");
+        });
     },
     [client, team, refreshTeam, toast],
   );
@@ -743,6 +776,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           break;
         case "retire":
           retireThread(agentId);
+          break;
+        case "retire-new":
+          retireThread(agentId, { newComputer: true });
           break;
       }
     },
@@ -808,7 +844,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onError={(text) => toast(text, "error")}
           onRoutines={() => openRoutines(selected.agent_id)}
           onHistory={() => setHistoryFor(selected.agent_id)}
-          onRetire={() => retireThread(selected.agent_id)}
+          onRetire={() => retireThread(selected.agent_id, { newComputer: true })}
           onRename={(name) => renameTeammate(selected.agent_id, name)}
           renaming={renaming}
           onRenamingChange={setRenaming}
@@ -838,9 +874,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
             select(historyFor);
             setHistoryFor(null);
           }}
-          onRetire={() => {
+          onRetire={(newComputer) => {
             setHistoryFor(null);
-            retireThread(historyFor);
+            retireThread(historyFor, { newComputer });
           }}
           fountainUrl={client.baseUrl}
         />
