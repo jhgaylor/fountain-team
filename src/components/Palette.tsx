@@ -8,6 +8,7 @@ export type PaletteChoice =
   | { kind: "teammate"; agentId: string }
   | { kind: "hit"; hit: SearchHit }
   | { kind: "routines" }
+  | { kind: "runners" }
   | { kind: "export" };
 
 interface Props {
@@ -41,8 +42,9 @@ export function Palette({ client, teammates, onChoose, onClose }: Props) {
   }, [teammates, query]);
 
   const commands = useMemo(() => {
-    const all: Array<{ id: "routines" | "export"; label: string; hint: string }> = [
+    const all: Array<{ id: "routines" | "runners" | "export"; label: string; hint: string }> = [
       { id: "routines", label: "Routines", hint: "schedules that run a teammate" },
+      { id: "runners", label: "Runners", hint: "your own machines as computers" },
       { id: "export", label: "Export team as a fountain apply manifest", hint: "team.yml" },
     ];
     if (!query) return all;
@@ -154,7 +156,7 @@ export function Palette({ client, teammates, onChoose, onClose }: Props) {
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => onChoose({ kind: c.id })}
               >
-                <span className="glyph">{c.id === "routines" ? "⏰" : "⤓"}</span>
+                <span className="glyph">{c.id === "routines" ? "⏰" : c.id === "runners" ? "🖥" : "⤓"}</span>
                 <span className="name">{c.label}</span>
                 <span className="muted small">{c.hint}</span>
               </button>

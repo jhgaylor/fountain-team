@@ -36,6 +36,11 @@ interface Props {
   onBack: () => void;
   onError: (text: string) => void;
   onRoutines: () => void;
+  onHistory: () => void;
+  onRename: (name: string | null) => Promise<void>;
+  /** start in the rename editor (from the row menu) */
+  renaming: boolean;
+  onRenamingChange: (on: boolean) => void;
   /** a turn to scroll to and highlight (from search); cleared by the parent once consumed */
   focusTurnId: string | null;
   onFocused: () => void;
@@ -56,12 +61,18 @@ export function Thread({
   onBack,
   onError,
   onRoutines,
+  onHistory,
+  onRename,
+  renaming,
+  onRenamingChange,
   focusTurnId,
   onFocused,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
-  const busy = teammate.presence.state === "working" || teammate.presence.state === "starting" || conv.status === "running";
+  const machineOffline = teammate.presence.state === "machine_offline";
+  const busy = machineOffline || teammate.presence.state === "working" || teammate.presence.state === "starting" || conv.status === "running";
+  const runner = conv.sandbox?.runner ?? null;
   const [draft, setDraft] = useState(() => loadDraft(conv.id));
   const [images, setImages] = useState<OutgoingImage[]>([]);
   const [sending, setSending] = useState(false);
@@ -153,6 +164,20 @@ export function Thread({
 
   // The spawn tree: what this teammate started (sub-conversations over the API).
   const [profileOpen, setProfileOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(teammate.name);
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (renaming) {
+      setNameDraft(teammate.name);
+      window.setTimeout(() => nameRef.current?.select(), 0);
+    }
+  }, [renaming, teammate.name]);
+  const commitRename = async () => {
+    const next = nameDraft.trim();
+    onRenamingChange(false);
+    if (next === teammate.name) return;
+    await onRename(next || null);
+  };
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [treeOpen, setTreeOpen] = useState(false);
   useEffect(() => {
@@ -271,13 +296,69 @@ export function Thread({
         <button className="back" onClick={onBack} aria-label="Back to the team">
           ‹ Team
         </button>
+        {renaming ? (
+          <form
+            className="thread-title rename"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void commitRename();
+            }}
+          >
+            <input
+              ref={nameRef}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={() => void commitRename()}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setNameDraft(teammate.name);
+                  onRenamingChange(false);
+                }
+              }}
+              placeholder={teammate.agent.name}
+              aria-label="Teammate name"
+              maxLength={120}
+            />
+            <span className="hint">Enter to save · Esc to cancel · empty resets to the agent's name</span>
+          </form>
+        ) : (
         <button className="thread-title as-button" onClick={() => setProfileOpen(true)} title="About this teammate">
-          <div className="name">{teammate.name}</div>
+          <div className="name">
+            {teammate.name}
+            <span
+              className="rename-pencil"
+              role="button"
+              tabIndex={0}
+              title="Rename"
+              aria-label="Rename teammate"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRenamingChange(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRenamingChange(true);
+                }
+              }}
+            >
+              ✎
+            </span>
+          </div>
           <div className="sub">
             {teammate.name !== teammate.agent.name && <span>{teammate.agent.name} · </span>}
             <span className={`presence inline ${teammate.presence.state}`} />
             <span>{teammate.presence.label}</span>
-            {conv.sandbox && <span className="mono muted"> · {conv.sandbox.sprite_name}</span>}
+            {runner ? (
+              <span className="muted" title={runner.path ?? undefined}>
+                {" "}
+                · on <b>{runner.name}</b>
+                {runner.path ? <span className="mono"> · {shortPath(runner.path, runner.root ?? null)}</span> : null}
+              </span>
+            ) : (
+              conv.sandbox && <span className="mono muted"> · {conv.sandbox.sprite_name}</span>
+            )}
             {formatUsage(teammate.usage_total) && (
               <span className="muted" title="Tokens over every conversation this teammate has had on the team">
                 {" "}
@@ -286,6 +367,7 @@ export function Thread({
             )}
           </div>
         </button>
+        )}
         <div className="row">
           {spawned.length > 0 && (
             <button className="secondary small" onClick={() => setTreeOpen((o) => !o)} title="Conversations this teammate started" aria-expanded={treeOpen}>
@@ -294,6 +376,9 @@ export function Thread({
           )}
           <button className="secondary small" onClick={onRoutines} title="Schedules that run this teammate">
             Routines
+          </button>
+          <button className="secondary small" onClick={onHistory} title="This teammate's previous conversations">
+            History
           </button>
           {conv.status === "running" && (
             <button className="secondary small" onClick={onInterrupt}>
@@ -431,7 +516,13 @@ export function Thread({
             ref={textRef}
             rows={1}
             value={draft}
-            placeholder={busy ? `Message ${teammate.name}… (queued until they're done)` : `Message ${teammate.name}…`}
+            placeholder={
+              machineOffline
+                ? `Message ${teammate.name}… (queued until ${runner?.name ?? "their machine"} is back online)`
+                : busy
+                  ? `Message ${teammate.name}… (queued until they're done)`
+                  : `Message ${teammate.name}…`
+            }
             onChange={(e) => changeDraft(e.target.value)}
             onKeyDown={onKey}
             onPaste={onPaste}
@@ -441,7 +532,13 @@ export function Thread({
             className={`send ${busy ? "queue" : ""}`}
             disabled={!canSend}
             aria-label={busy ? "Queue" : "Send"}
-            title={busy ? "They're busy — this is sent when the turn ends (Enter)" : "Send (Enter · Shift+Enter for a new line)"}
+            title={
+              machineOffline
+                ? "Their machine is offline — this is sent when the runner reconnects (Enter)"
+                : busy
+                  ? "They're busy — this is sent when the turn ends (Enter)"
+                  : "Send (Enter · Shift+Enter for a new line)"
+            }
           >
             {busy ? "⏱" : "↑"}
           </button>
@@ -474,7 +571,13 @@ function QueuedView({ message, onCancel }: { message: QueuedMessage; onCancel: (
   );
 }
 
-function TurnView({
+/** "~/…" inside a runner's root, so the header does not carry a 70-character path. */
+export function shortPath(path: string, root: string | null): string {
+  if (root && path.startsWith(root)) return `…${path.slice(root.length)}`;
+  return path.replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, "~");
+}
+
+export function TurnView({
   client,
   conversationId,
   turn,

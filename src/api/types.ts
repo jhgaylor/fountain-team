@@ -1,10 +1,29 @@
 // Shapes as served by the Fountain API (see docs/api.md, "Team").
 
+export interface Runner {
+  id: string;
+  name: string;
+  hostname: string | null;
+  os?: string | null;
+  arch?: string | null;
+  version?: string | null;
+  root?: string | null;
+  online: boolean;
+  connected_at?: string | null;
+  last_seen_at?: string | null;
+  created_at?: string;
+  /** on a conversation's sandbox: the sandbox directory on that machine */
+  path?: string | null;
+}
+
 export interface Sandbox {
   id: string;
   sprite_name: string;
   status: string;
   url: string | null;
+  /** sprites | e2b | daytona | runner (absent on older servers) */
+  provider?: string | null;
+  runner?: Runner | null;
 }
 
 export interface Conversation {
@@ -57,6 +76,7 @@ export interface Vault {
 }
 
 export type PresenceState =
+  | "machine_offline"
   | "working"
   | "starting"
   | "online"
@@ -142,6 +162,11 @@ export interface SearchHit {
   turn_number: number | null;
   snippet: string;
   ts: string;
+}
+
+/** A row of GET /api/team/:agent_id/conversations — a conversation plus whether it is the live one. */
+export interface HistoryConversation extends Conversation {
+  current: boolean;
 }
 
 export interface TreeNode {

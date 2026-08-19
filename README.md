@@ -80,6 +80,14 @@ do, each on the public API:
   model, runtime, description, system prompt, skills, MCP servers,
   environment, vault, computer — and links to edit the agent in Fountain.
 - **Keyboard**: ⌘K search, Alt+↑/↓ to switch teammates, `?` for the list.
+- **Rename** a teammate (✎ by the name, or the row menu); empty resets to the
+  agent's name. **History** (thread header / row menu): its previous
+  conversations — earlier computers' threads — readable in place.
+- **Runners** (team menu ⋯): your own machines serving as a teammate's
+  computer (Fountain's self-hosted runner): which are online, forget one,
+  how to start `fountain runner`. A teammate on a runner shows "on
+  <machine> · path" in the header; when that machine is off its presence is
+  *machine offline* and messages queue until the runner reconnects.
 
 Pins, mutes, marks and drafts live in this browser's `localStorage`; Fountain
 has no field for them.
@@ -126,6 +134,8 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | Usage | `usage` on turns, `usage_total` on the roster |
 | Spawned | `GET /api/conversations/:id/tree` |
 | Export | `GET /api/agents/:id` + `/api/environments`, emitted as YAML client-side |
+| Rename / History | `PATCH /api/team/:agent_id`, `GET /api/team/:agent_id/conversations` |
+| Runners | `GET /api/runners`, `DELETE /api/runners/:id`; `sandbox.runner` + `machine_offline` presence on the roster |
 
 `EventSource` cannot send an `Authorization` header, so the stream is read
 with `fetch` and parsed in `src/lib/sse.ts`. The ACP output is turned into

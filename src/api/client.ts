@@ -8,7 +8,9 @@ import type {
   Agent,
   Conversation,
   Environment,
+  HistoryConversation,
   LogEvent,
+  Runner,
   Me,
   Schedule,
   ScheduleInput,
@@ -67,6 +69,26 @@ export class FountainClient {
   async addTeammate(input: AddTeammateInput): Promise<Teammate> {
     const r = await this.json<{ data: Teammate }>("POST", "/api/team", input);
     return r.data;
+  }
+
+  async renameTeammate(agentId: string, name: string | null): Promise<Teammate> {
+    const r = await this.json<{ data: Teammate }>("PATCH", `/api/team/${agentId}`, { name });
+    return r.data;
+  }
+
+  /** The teammate's conversations on the team, newest first, the live one flagged `current`. */
+  async teammateHistory(agentId: string): Promise<HistoryConversation[]> {
+    return (await this.json<{ data: HistoryConversation[] }>("GET", `/api/team/${agentId}/conversations`)).data;
+  }
+
+  // ── runners ─────────────────────────────────────────────────────────────
+
+  async listRunners(): Promise<Runner[]> {
+    return (await this.json<{ data: Runner[] }>("GET", "/api/runners")).data;
+  }
+
+  deleteRunner(id: string): Promise<void> {
+    return this.json<void>("DELETE", `/api/runners/${id}`);
   }
 
   removeTeammate(agentId: string): Promise<void> {
@@ -252,6 +274,10 @@ export function describeError(err: unknown): string {
         return "They're still working on the last message.";
       case "provisioning":
         return "Their computer is still starting — try again shortly.";
+      case "runner_offline":
+        return "Their machine is offline — the message waits until the runner reconnects.";
+      case "no_runner_online":
+        return "None of your runners is online — start `fountain runner` on the machine first.";
       case "subscription_required":
         return "An active Fountain subscription is required.";
       case "environment_not_allowed":
