@@ -20,6 +20,8 @@ import { isNearBottom, TURN_WINDOW, windowTail } from "../lib/scroll";
 import { formatTime } from "./Roster";
 import { Markdown } from "./Markdown";
 import { Profile } from "./Profile";
+import { Activity, ToolsRow } from "./Activity";
+import { groupBlocks, type FeedItem } from "../lib/feed";
 
 interface Props {
   client: FountainClient;
@@ -44,6 +46,8 @@ interface Props {
   /** a turn to scroll to and highlight (from search); cleared by the parent once consumed */
   focusTurnId: string | null;
   onFocused: () => void;
+  activityOpen: boolean;
+  onActivityChange: (open: boolean) => void;
   fountainUrl: string;
 }
 
@@ -67,6 +71,8 @@ export function Thread({
   onRenamingChange,
   focusTurnId,
   onFocused,
+  activityOpen,
+  onActivityChange,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
@@ -374,6 +380,14 @@ export function Thread({
               Spawned · {spawned.length}
             </button>
           )}
+          <button
+            className={`secondary small ${activityOpen ? "active" : ""}`}
+            onClick={() => onActivityChange(!activityOpen)}
+            title="What they're doing, as they narrate it — tool calls folded"
+            aria-pressed={activityOpen}
+          >
+            Activity
+          </button>
           <button className="secondary small" onClick={onRoutines} title="Schedules that run this teammate">
             Routines
           </button>
@@ -421,6 +435,8 @@ export function Thread({
           </ul>
         </div>
       )}
+      <div className="thread-columns">
+      <div className="thread-main">
       <div className="messages-wrap">
         <div className="messages" ref={scrollRef} onScroll={onScroll}>
           {loading && <div className="centered muted">Loading…</div>}
@@ -548,6 +564,9 @@ export function Thread({
           </button>
         </div>
       </form>
+      </div>
+      {activityOpen && <Activity teammate={teammate} turns={turns} events={events} onClose={() => onActivityChange(false)} />}
+      </div>
     </section>
   );
 }
@@ -597,6 +616,7 @@ export function TurnView({
   highlighted: boolean;
 }) {
   const blocks = useMemo(() => blocksForTurn(events, runtime), [events, runtime]);
+  const items = useMemo(() => groupBlocks(blocks), [blocks]);
   const inFlight = turn.status === "pending" || turn.status === "running";
   const failed = turn.status === "failed" || turn.status === "cancelled";
   const usage = formatUsage(turn.usage);
@@ -607,9 +627,15 @@ export function TurnView({
         {turn.prompt && <div className="body">{turn.prompt}</div>}
         <div className="meta">{formatTime(turn.inserted_at)}</div>
       </div>
-      {blocks.map((b, i) => (
-        <BlockView key={i} block={b} />
-      ))}
+      {items.map((item, i) =>
+        item.kind === "tools" ? (
+          <div className="bubble-aside" key={i}>
+            <ToolsRow tools={item.tools} />
+          </div>
+        ) : (
+          <BlockView key={i} block={item} />
+        ),
+      )}
       {inFlight && blocks.length === 0 && (
         <div className="bubble them typing">
           <span />
@@ -664,7 +690,7 @@ function TurnImages({ client, conversationId, turn }: { client: FountainClient; 
   );
 }
 
-function BlockView({ block }: { block: Block }) {
+function BlockView({ block }: { block: Exclude<FeedItem, { kind: "tools" }> | Block }) {
   switch (block.kind) {
     case "text":
       return (

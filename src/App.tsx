@@ -763,6 +763,8 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onRenamingChange={setRenaming}
           focusTurnId={focusTurnId}
           onFocused={() => setFocusTurnId(null)}
+          activityOpen={prefs.activity}
+          onActivityChange={(open) => updatePrefs((p) => ({ ...p, activity: open }))}
           fountainUrl={client.baseUrl}
         />
       ) : team.length === 0 ? (

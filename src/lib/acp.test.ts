@@ -52,7 +52,16 @@ describe("blocksForTurn", () => {
       ),
     ];
     expect(blocksForTurn(events, "claude")).toEqual([
-      { kind: "tool", id: "c1", name: "Read file", summary: "lib/a.ex", status: "done", output: "defmodule A" },
+      {
+        kind: "tool",
+        id: "c1",
+        name: "Read file",
+        summary: "lib/a.ex",
+        status: "done",
+        output: "defmodule A",
+        startedAt: "2026-08-18T00:00:00Z",
+        endedAt: "2026-08-18T00:00:00Z",
+      },
     ]);
   });
 
@@ -65,7 +74,16 @@ describe("blocksForTurn", () => {
     ];
     expect(blocksForTurn(events, "claude")).toEqual([
       { kind: "thinking", body: "hmm" },
-      { kind: "tool", id: "c2", name: "execute", summary: "cmd=ls", status: "error", output: "no" },
+      {
+        kind: "tool",
+        id: "c2",
+        name: "execute",
+        summary: "cmd=ls",
+        status: "error",
+        output: "no",
+        startedAt: "2026-08-18T00:00:00Z",
+        endedAt: "2026-08-18T00:00:00Z",
+      },
       { kind: "text", body: "done" },
     ]);
   });
