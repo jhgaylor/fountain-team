@@ -676,27 +676,34 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       const t = team.find((x) => x.agent_id === agentId);
       if (!t) return;
       if (opts.newComputer) {
-        if (t.conversation.status === "terminated") {
-          toast("That thread is already retired — the next message starts a fresh one");
-          return;
-        }
+        const live = t.conversation.status !== "terminated" && t.conversation.status !== "failed";
         // A thread nothing has happened on yet has nothing to lose — no need to ask
         // (customize → "restart their computer" is the usual way here).
         if (
+          live &&
           t.conversation.turn_count > 0 &&
           !window.confirm(
-            `Start a fresh thread with ${t.name} on a new computer? This ends the current conversation and shuts down its computer (anything not committed or pushed from that computer is gone). The thread stays under History; the next message starts a new one.`,
+            `Start a fresh thread with ${t.name} on a new computer? This ends the current conversation and shuts down its computer (anything not committed or pushed from that computer is gone). The thread stays under History; a new computer starts now.`,
           )
         )
           return;
-        client
-          .terminate(t.conversation.id)
+        // End the current computer, then open the new conversation right away: with the old one
+        // past resuming, Fountain opens it on a fresh sandbox and provisions immediately, so the
+        // thread goes "Starting their computer…" → "ready" without waiting for a first message.
+        (live ? client.terminate(t.conversation.id) : Promise.resolve())
+          .then(() => client.freshConversation(agentId))
           .then(() => {
-            toast(`Retired — ${t.name}'s next message starts a fresh computer`);
+            toast(`Starting ${t.name}'s new computer…`);
             setQueues((q) => withoutConversation(q, agentId));
             return refreshTeam();
           })
-          .catch((err) => toast(describeError(err), "error"));
+          .catch((err) => {
+            if (err instanceof ApiError && err.code === "conversation_busy") {
+              toast(`${t.name} is still working — interrupt or wait for the turn to end, then try again.`, "error");
+              return;
+            }
+            toast(describeError(err), "error");
+          });
         return;
       }
       const keeps = t.conversation.status !== "terminated" && t.conversation.status !== "failed";
