@@ -15,7 +15,17 @@ import type { LogEvent } from "../api/types";
 export type Block =
   | { kind: "text"; body: string }
   | { kind: "thinking"; body: string }
-  | { kind: "tool"; id: string | null; name: string; summary: string; status: "running" | "done" | "error"; output: string }
+  | {
+      kind: "tool";
+      id: string | null;
+      name: string;
+      summary: string;
+      status: "running" | "done" | "error";
+      output: string;
+      /** event timestamps: when the call was announced and when it settled */
+      startedAt: string | null;
+      endedAt: string | null;
+    }
   | { kind: "raw"; body: string };
 
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);
@@ -61,6 +71,8 @@ export function blocksForTurn(events: LogEvent[], runtime: string): Block[] {
               summary: toolSummary(update),
               status: "running",
               output: "",
+              startedAt: ev.ts ?? null,
+              endedAt: null,
             };
             out.push(block);
             if (id) tools.set(id, block);
@@ -74,6 +86,7 @@ export function blocksForTurn(events: LogEvent[], runtime: string): Block[] {
             if (block) {
               block.status = status === "completed" ? "done" : "error";
               block.output = toolOutput(update);
+              block.endedAt = ev.ts ?? null;
             }
             break;
           }

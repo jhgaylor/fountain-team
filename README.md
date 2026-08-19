@@ -72,6 +72,11 @@ do, each on the public API:
   button in the thread header lists them (`/tree`).
 - **Export** (team menu ⋯): the team as a `fountain apply` manifest —
   one `Agent` document per teammate; import is `fountain apply -f team.yml`.
+- **Activity** (thread header): a sidebar with what the teammate is doing
+  as it narrates it — prose between folded "Ran N tool calls ▾" rows that
+  open to the calls with status, duration and output, per turn, live. The
+  bubbles fold tool runs the same way. Built from the ACP events already on
+  the stream.
 - **Markdown** in replies — headings, lists, tables, code blocks with Copy,
   links (http/https/mailto only) — rendered from a small parser in
   `src/lib/markdown.ts` to React elements, never HTML, so nothing an agent

@@ -14,10 +14,12 @@ export interface Prefs {
   unread: string[];
   /** desktop notifications on for this browser */
   notify: boolean;
+  /** the activity sidebar is open */
+  activity: boolean;
 }
 
 const KEY = "fountain-team.prefs";
-export const EMPTY_PREFS: Prefs = { pinned: [], muted: [], unread: [], notify: false };
+export const EMPTY_PREFS: Prefs = { pinned: [], muted: [], unread: [], notify: false, activity: false };
 
 export function loadPrefs(storage: Pick<Storage, "getItem"> = localStorage): Prefs {
   try {
@@ -36,7 +38,7 @@ export function savePrefs(p: Prefs, storage: Pick<Storage, "setItem"> = localSto
 export function normalizePrefs(raw: unknown): Prefs {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
-  return { pinned: ids(o.pinned), muted: ids(o.muted), unread: ids(o.unread), notify: o.notify === true };
+  return { pinned: ids(o.pinned), muted: ids(o.muted), unread: ids(o.unread), notify: o.notify === true, activity: o.activity === true };
 }
 
 export function toggleIn(list: string[], id: string): string[] {
