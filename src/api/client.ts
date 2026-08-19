@@ -204,6 +204,18 @@ export class FountainClient {
     return this.json<{ data: Conversation }>("GET", `/api/conversations/${conversationId}`).then((r) => r.data);
   }
 
+  // ── support ─────────────────────────────────────────────────────────────
+
+  createSupportReport(input: {
+    category: string;
+    message: string;
+    context?: Record<string, unknown>;
+    client?: string;
+    screenshot?: { data: string; media_type: string } | null;
+  }): Promise<{ id: string; status: string }> {
+    return this.json<{ data: { id: string; status: string } }>("POST", "/api/support/reports", input).then((r) => r.data);
+  }
+
   // ── creating a teammate from scratch ────────────────────────────────────
 
   getCatalog(): Promise<Catalog> {

@@ -88,6 +88,12 @@ do, each on the public API:
   chat itself a tool run is just a status line ("Ran Terminal 3.0s ›");
   clicking it opens Activity at that run. Built from the ACP events already
   on the stream.
+- **Report a problem** (team menu ⋯, or a row's menu for "…with this
+  teammate") — a category, what happened, an optional screenshot, and what
+  the app knows (shown before sending: conversation, agent, sandbox,
+  presence, recent stage events, app build — never agent output or keys) →
+  `POST /api/support/reports`; the people running your Fountain get it as
+  an issue and/or mail.
 - **Markdown** in replies — headings, lists, tables, code blocks with Copy,
   links (http/https/mailto only) — rendered from a small parser in
   `src/lib/markdown.ts` to React elements, never HTML, so nothing an agent
