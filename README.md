@@ -95,8 +95,10 @@ do, each on the public API:
 - **Customize a teammate** (click the thread title) — three tabs, all
   edited here on the agent behind them, nothing sends you to Fountain:
   - **Profile**: the brain (one select; the runtime follows), what they do
-    (one line → description + system prompt), the computer, and the details
-    folded away.
+    (one line → description + system prompt), the **computer** — Fountain's
+    cloud or **your own machine** (a select, when the server offers runners;
+    it shows which of your machines are online and how to start one), and
+    the details folded away.
   - **Skills**: what they have, a searchable catalog of skills.sh
     collections (Anthropic's document skills, Vercel's React guidelines,
     Superpowers' engineering workflow, …) with one-click Add, any GitHub
@@ -130,7 +132,9 @@ do, each on the public API:
   starts right away — the thread shows it starting, then ready.
 - **Runners** (team menu ⋯): your own machines serving as a teammate's
   computer (Fountain's self-hosted runner): which are online, forget one,
-  how to start `fountain runner`. A teammate on a runner shows "on
+  how to start `fountain runner`. To put a teammate on one: right-click them
+  → **Run on your own machine…** (Customize → Computer), then restart their
+  computer. A teammate on a runner shows "on
   <machine> · path" in the header; when that machine is off its presence is
   *machine offline* and messages queue until the runner reconnects.
 

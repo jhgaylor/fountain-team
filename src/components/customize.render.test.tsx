@@ -98,6 +98,15 @@ describe("customize panel", () => {
     expect(html).toContain("no sign-in");
   });
 
+  test("the computer field offers your own machine for a teammate on a runner and says how to start one", () => {
+    // effects do not run in SSR, so no catalog arrives; a teammate already on a runner shows the field regardless
+    const onRunner = { ...teammate, agent: { ...agent, sandbox_provider: "runner" } };
+    const html = renderToString(<Profile client={client} teammate={onRunner} onClose={() => {}} onRunners={() => {}} />);
+    expect(html).toContain("Your own machine (fountain runner)");
+    expect(html).toContain("Checking your machines…");
+    expect(html).toContain("How to set one up");
+  });
+
   test("an empty teammate renders both tabs with nothing yet", () => {
     const bare = { ...agent, skills: [], mcp_servers: {} };
     expect(renderToString(<SkillsTab client={client} agent={bare} name="Koda" onAgent={() => {}} />)).toContain("nothing yet");

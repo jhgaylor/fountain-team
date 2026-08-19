@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FountainClient } from "../api/client";
 import { describeError } from "../api/client";
-import type { Agent, Environment, Teammate } from "../api/types";
+import type { Agent, Environment, Runner, Teammate } from "../api/types";
 import { formatUsage } from "../lib/format";
 import { brainsFrom, CREDENTIAL_PROVIDERS, keySource, labelFor, personaPrompt, type Brain, type Catalog } from "../lib/brain";
 import { Avatar } from "./Avatar";
@@ -26,6 +26,7 @@ export function Profile({
   onClose,
   onAgentChanged,
   onRetire,
+  onRunners,
   initialTab = "profile",
 }: {
   client: FountainClient;
@@ -34,6 +35,8 @@ export function Profile({
   onAgentChanged?: () => void;
   /** End the current computer so the next message starts a fresh one with the new skills/apps. */
   onRetire?: () => void;
+  /** Open the Runners page — how to start `fountain runner` on a machine. */
+  onRunners?: () => void;
   initialTab?: Tab;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -41,7 +44,8 @@ export function Profile({
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [creds, setCreds] = useState<Record<string, boolean>>({});
   const [persona, setPersona] = useState<string | null>(null);
-  const [saving, setSaving] = useState<"brain" | "persona" | "key" | null>(null);
+  const [saving, setSaving] = useState<"brain" | "persona" | "key" | "computer" | null>(null);
+  const [runners, setRunners] = useState<Runner[] | null>(null);
   const [keyDraft, setKeyDraft] = useState("");
   const [keyMessage, setKeyMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [envs, setEnvs] = useState<Environment[]>([]);
@@ -135,6 +139,39 @@ export function Profile({
     setAgent(next);
     setPending(true);
     onAgentChanged?.();
+  };
+
+  // ── the computer: Fountain's cloud, or a machine of yours running `fountain runner` ──
+  const providers = catalog?.sandbox_providers;
+  const runnerOffered = providers?.enabled.includes("runner") ?? false;
+  const cloudProviders = (providers?.enabled ?? []).filter((p) => p !== "runner");
+  const defaultProvider = providers?.default ?? null;
+  const onRunner = a.sandbox_provider === "runner";
+  useEffect(() => {
+    if (!runnerOffered && !onRunner) return;
+    let cancelled = false;
+    client
+      .listRunners()
+      .then((r) => !cancelled && setRunners(r))
+      .catch(() => !cancelled && setRunners([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [client, runnerOffered, onRunner]);
+  const online = (runners ?? []).filter((r) => r.online);
+
+  const changeComputer = async (value: string) => {
+    if (!agent) return;
+    const provider = value === "" ? null : value;
+    if ((agent.sandbox_provider ?? null) === provider) return;
+    setSaving("computer");
+    try {
+      onAgentUpdated(await client.updateAgent(agent.id, { sandbox_provider: provider }));
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setSaving(null);
+    }
   };
 
   const envName = (id: string | null) => (id ? (envs.find((e) => e.id === id)?.name ?? id.slice(0, 8)) : null);
@@ -255,13 +292,64 @@ export function Profile({
               <span className="hint">One line is plenty — it becomes their description and the start of their instructions.</span>
             </label>
 
-            <dl className="profile-grid">
-              <dt>Computer</dt>
-              <dd>
+            <label className="profile-field">
+              Computer
+              {(runnerOffered || onRunner) && (
+                <select value={a.sandbox_provider ?? ""} disabled={!agent || saving === "computer"} onChange={(e) => void changeComputer(e.target.value)}>
+                  <option value="">Fountain's cloud{defaultProvider && defaultProvider !== "runner" ? ` (${defaultProvider})` : ""}</option>
+                  {cloudProviders
+                    .filter((p) => p !== defaultProvider)
+                    .map((p) => (
+                      <option key={p} value={p}>
+                        Cloud · {p}
+                      </option>
+                    ))}
+                  <option value="runner">Your own machine (fountain runner)</option>
+                </select>
+              )}
+              <span className="computer-status">
                 <span className={`presence inline ${teammate.presence.state}`} />
                 {teammate.presence.label}
-                {conv.sandbox?.runner ? <span className="muted"> · on {conv.sandbox.runner.name}</span> : a.sandbox_provider ? <span className="muted"> · {a.sandbox_provider}</span> : null}
-              </dd>
+                {conv.sandbox?.runner ? (
+                  <span className="muted">
+                    {" "}
+                    · on <b>{conv.sandbox.runner.name}</b>
+                    {conv.sandbox.runner.path ? <span className="mono"> {conv.sandbox.runner.path}</span> : ""}
+                  </span>
+                ) : conv.sandbox?.provider && conv.sandbox.provider !== "runner" ? (
+                  <span className="muted"> · {conv.sandbox.provider}</span>
+                ) : null}
+              </span>
+              {onRunner && (
+                <span className="hint">
+                  {runners === null ? (
+                    "Checking your machines…"
+                  ) : online.length > 0 ? (
+                    <>
+                      New computers land on your most recently connected machine — online now: <b>{online.map((r) => r.name).join(", ")}</b>.
+                    </>
+                  ) : (
+                    <>
+                      <b>No machine of yours is online</b> — a new computer for {teammate.name} cannot start until one is. On the machine: <code>fountain auth login</code>, then <code>fountain runner</code>.
+                    </>
+                  )}{" "}
+                  {onRunners && (
+                    <button type="button" className="linkish" onClick={onRunners}>
+                      {online.length > 0 ? "Your machines." : "How to set one up."}
+                    </button>
+                  )}{" "}
+                  The agent runs there as you, with your files and network — trusted mode.
+                </span>
+              )}
+              {!onRunner && runnerOffered && (
+                <span className="hint">
+                  Pick your own machine to run {teammate.name} on a Mac, a GPU box or a home server — anything with <code>fountain runner</code> on it.
+                  {online.length > 0 ? ` Online now: ${online.map((r) => r.name).join(", ")}.` : ""}
+                </span>
+              )}
+            </label>
+
+            <dl className="profile-grid">
               <dt>Can do</dt>
               <dd>
                 {skillCount === 0 && appCount === 0 ? (

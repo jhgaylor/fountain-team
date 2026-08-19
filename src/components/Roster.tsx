@@ -18,7 +18,9 @@ export type RowAction =
   | "rename"
   | "history"
   | "retire"
-  | "retire-new";
+  | "retire-new"
+  | "customize"
+  | "computer";
 
 interface Props {
   client: FountainClient;
@@ -316,6 +318,12 @@ function RowMenu({
       <hr />
       <button role="menuitem" onClick={() => onAction("rename")}>
         Rename…
+      </button>
+      <button role="menuitem" onClick={() => onAction("customize")} title="Brain, what they do, skills, apps, computer">
+        Customize…
+      </button>
+      <button role="menuitem" onClick={() => onAction("computer")} title="Run this teammate on a machine of yours (a Mac, a GPU box, a home server) with `fountain runner`, or back in Fountain's cloud">
+        Run on your own machine…
       </button>
       <button role="menuitem" onClick={() => onAction("history")}>
         History…
