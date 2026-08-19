@@ -326,9 +326,15 @@ function RowMenu({
       <button role="menuitem" onClick={() => onAction("customize")} title="Brain, what they do, skills, apps, computer">
         Customize…
       </button>
-      <button role="menuitem" onClick={() => onAction("computer")} title="Run this teammate on a machine of yours (a Mac, a GPU box, a home server) with `fountain runner`, or back in Fountain's cloud">
-        Run on your own machine…
-      </button>
+      {teammate.agent.sandbox_provider === "runner" ? (
+        <button role="menuitem" onClick={() => onAction("computer")} title="This teammate runs on a machine of yours; move them back to a computer in Fountain's cloud">
+          Run in the cloud…
+        </button>
+      ) : (
+        <button role="menuitem" onClick={() => onAction("computer")} title="Run this teammate on a machine of yours (a Mac, a GPU box, a home server) with `fountain runner`">
+          Run on your own machine…
+        </button>
+      )}
       <button role="menuitem" onClick={() => onAction("history")}>
         History…
       </button>
