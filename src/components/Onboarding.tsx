@@ -11,7 +11,7 @@ export function Onboarding({ onAdd, error }: { onAdd: () => void; error: string 
         </p>
         <ol className="steps">
           <li>
-            <b>Add a teammate</b> — pick an agent, optionally a name, environment and vault.
+            <b>Add a teammate</b> — a name (we suggest one), a brain, one line about what they do. That's it.
           </li>
           <li>
             <b>Say hello</b> — the first message starts its computer (a few seconds).

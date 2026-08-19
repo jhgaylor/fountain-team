@@ -4,6 +4,7 @@
  * string when there was one, so the UI can say "still working on the last
  * message" instead of "400".
  */
+import type { Catalog } from "../lib/brain";
 import type {
   Agent,
   Conversation,
@@ -187,6 +188,49 @@ export class FountainClient {
 
   getConversation(conversationId: string): Promise<Conversation> {
     return this.json<{ data: Conversation }>("GET", `/api/conversations/${conversationId}`).then((r) => r.data);
+  }
+
+  // ── creating a teammate from scratch ────────────────────────────────────
+
+  getCatalog(): Promise<Catalog> {
+    return this.json<{ data: Catalog }>("GET", "/api/catalog").then((r) => r.data);
+  }
+
+  /** per-provider set/not-set, e.g. {anthropic_api_key: true} */
+  async inferenceCredentials(): Promise<Record<string, boolean>> {
+    const r = await this.json<{ data: unknown }>("GET", "/api/account/inference-credentials");
+    const d = r.data as Record<string, unknown> | Array<Record<string, unknown>>;
+    const out: Record<string, boolean> = {};
+    if (Array.isArray(d)) {
+      for (const row of d) {
+        const k = typeof row.provider === "string" ? row.provider : typeof row.name === "string" ? row.name : null;
+        if (k) out[k] = row.set === true || row.configured === true || row.present === true;
+      }
+    } else if (d && typeof d === "object") {
+      for (const [k, v] of Object.entries(d)) {
+        out[k] = v === true || (typeof v === "object" && v !== null && ((v as Record<string, unknown>).set === true || (v as Record<string, unknown>).configured === true));
+      }
+    }
+    return out;
+  }
+
+  createAgent(input: {
+    name: string;
+    model: string;
+    runtime: string;
+    description?: string;
+    system?: string;
+    environment_id?: string | null;
+  }): Promise<Agent> {
+    return this.json<{ data: Agent }>("POST", "/api/agents", input).then((r) => r.data);
+  }
+
+  generateAvatar(base: string, mood: string): Promise<{ data: string; media_type: string }> {
+    return this.json<{ data: { data: string; media_type: string } }>("POST", "/api/avatars/generate", { base, mood }).then((r) => r.data);
+  }
+
+  putAvatar(agentId: string, data: string, media_type: string): Promise<unknown> {
+    return this.json("PUT", `/api/agents/${agentId}/avatar`, { data, media_type });
   }
 
   // ── picker options ──────────────────────────────────────────────────────
