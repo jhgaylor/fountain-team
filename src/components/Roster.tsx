@@ -20,7 +20,8 @@ export type RowAction =
   | "retire"
   | "retire-new"
   | "customize"
-  | "computer";
+  | "computer"
+  | "report";
 
 interface Props {
   client: FountainClient;
@@ -43,6 +44,7 @@ interface Props {
   onExport: () => void;
   onShortcuts: () => void;
   onRunners: () => void;
+  onReport: () => void;
   connected: boolean;
 }
 
@@ -72,6 +74,7 @@ export function Roster({
   onExport,
   onShortcuts,
   onRunners,
+  onReport,
   connected,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -166,6 +169,7 @@ export function Roster({
             { label: "🖥  Runners", onSelect: onRunners },
             { label: "⤓  Export team as a manifest", onSelect: onExport },
             { label: "⌨  Keyboard shortcuts", onSelect: onShortcuts },
+            { label: "🚩  Report a problem…", onSelect: onReport },
             { label: "⚙  Settings", onSelect: onSettings, divider: true },
             { label: "⏻  Sign out", onSelect: onSignOut, danger: true },
           ]}
@@ -339,6 +343,9 @@ function RowMenu({
       </button>
       <button role="menuitem" onClick={() => onAction("copy-id")}>
         Copy conversation id
+      </button>
+      <button role="menuitem" onClick={() => onAction("report")} title="Tell the people who run this Fountain — with this thread's context attached">
+        Report a problem with this teammate…
       </button>
       <hr />
       <button role="menuitem" className="danger-text" onClick={() => onAction("remove")}>

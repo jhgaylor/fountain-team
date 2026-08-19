@@ -15,6 +15,8 @@ import { Onboarding } from "./components/Onboarding";
 import { Shortcuts } from "./components/Shortcuts";
 import { History } from "./components/History";
 import { Runners } from "./components/Runners";
+import { ReportDialog } from "./components/ReportDialog";
+import { buildReportContext } from "./lib/report";
 import { releaseImages, type OutgoingImage } from "./lib/images";
 import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
 import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
@@ -114,6 +116,8 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** the report dialog: about a teammate (agent id) or the page (null); undefined = closed */
+  const [reporting, setReporting] = useState<string | null | undefined>(undefined);
   const [focusTurnId, setFocusTurnId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
@@ -795,6 +799,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         case "retire-new":
           retireThread(agentId, { newComputer: true });
           break;
+        case "report":
+          setReporting(agentId);
+          break;
       }
     },
     [team, client, updatePrefs, removeTeammate, retireThread, toast, select],
@@ -827,6 +834,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         onExport={() => void exportTeam()}
         onShortcuts={() => setShortcutsOpen(true)}
         onRunners={openRunners}
+        onReport={() => setReporting(selectedId ?? null)}
         connected={connected}
       />
       {page === "runners" ? (
@@ -883,6 +891,22 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         </section>
       )}
       {shortcutsOpen && <Shortcuts onClose={() => setShortcutsOpen(false)} />}
+      {reporting !== undefined && (
+        <ReportDialog
+          client={client}
+          about={reporting ? (team.find((t) => t.agent_id === reporting)?.name ?? null) : null}
+          context={buildReportContext({
+            appCommit: __APP_COMMIT__,
+            fountainUrl: client.baseUrl,
+            connected,
+            teammate: reporting ? (team.find((t) => t.agent_id === reporting) ?? null) : null,
+            events: reporting && reporting === selectedId ? events : [],
+            queued: reporting ? (queues.get(reporting)?.length ?? 0) : 0,
+          })}
+          onClose={() => setReporting(undefined)}
+          toast={toast}
+        />
+      )}
       {historyFor && team.find((t) => t.agent_id === historyFor) && (
         <History
           client={client}

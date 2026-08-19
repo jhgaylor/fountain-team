@@ -12,8 +12,13 @@ import react from "@vitejs/plugin-react";
 // project site at /<repo>/); unset means the root.
 const proxyTarget = process.env.FOUNTAIN_PROXY?.replace(/\/+$/, "");
 
+// The commit the build was made from, for support reports. GitHub Pages
+// builds have GITHUB_SHA; a dev server says "dev".
+const appCommit = (process.env.GITHUB_SHA ?? "dev").slice(0, 7);
+
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/",
+  define: { __APP_COMMIT__: JSON.stringify(appCommit) },
   plugins: [react()],
   server: {
     port: 5173,
