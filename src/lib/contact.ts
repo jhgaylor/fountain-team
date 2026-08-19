@@ -67,6 +67,22 @@ export type ContactOffer = { kind: "absent" } | { kind: "disabled"; reason: stri
 
 export const NOT_CONFIGURED = "This instance has no AgentMail/AgentPhone keys configured";
 
+/**
+ * The SMS opt-in statement shown wherever a number is entered or changed —
+ * the wording A2P 10DLC review expects (who texts, what, frequency, rates,
+ * STOP/HELP). Keep verbatim; the dialog follows it with the Privacy Policy
+ * and Terms links on the configured Fountain server.
+ */
+export const CONSENT_TEXT =
+  "By entering your number you agree to receive text messages from Fountain — your teammate's replies and occasional notifications — at this number. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out at any time, HELP for help.";
+
+/** "Texts paused — STOP was received from +1 (555) …; text START to resume, or change the number." or null when texts flow. */
+export function optOutNotice(contact: Pick<Contact, "prompt_from_number" | "prompt_opted_out_at"> | null | undefined): string | null {
+  if (!contact?.prompt_opted_out_at) return null;
+  const from = contact.prompt_from_number ? formatPhone(contact.prompt_from_number) : "your number";
+  return `Texts paused — STOP was received from ${from}; text START to resume, or change the number.`;
+}
+
 /** Whether "Give email & phone…" shows for a teammate, given the instance's answer (null = not asked yet / unknown). */
 export function contactOffer(comms: CommsStatus | null, teammate: Pick<Teammate, "contact">): ContactOffer {
   if (!comms || !comms.enabled) return { kind: "absent" };

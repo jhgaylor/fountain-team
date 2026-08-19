@@ -24,6 +24,7 @@ export type RowAction =
   | "computer"
   | "report"
   | "contact"
+  | "change-number"
   | "release-contact";
 
 interface Props {
@@ -357,6 +358,11 @@ function RowMenu({
           title={offer.kind === "disabled" ? offer.reason : "Buy this teammate an AgentMail inbox and an AgentPhone number (billed); texts from your number become prompts"}
         >
           Give email &amp; phone…
+        </button>
+      )}
+      {teammate.contact && (
+        <button role="menuitem" onClick={() => onAction("change-number")} title="Replace the number whose texts reach this teammate (clears a STOP)">
+          Change the number that texts them…
         </button>
       )}
       {teammate.contact && (

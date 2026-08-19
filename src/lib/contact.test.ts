@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ApiError } from "../api/client";
-import { contactOffer, contactSummary, describeContactError, formatPhone, normalizePhone, NOT_CONFIGURED } from "./contact";
+import { CONSENT_TEXT, contactOffer, contactSummary, describeContactError, formatPhone, normalizePhone, NOT_CONFIGURED, optOutNotice } from "./contact";
 
 describe("normalizePhone", () => {
   test("mirrors the server: forgiving in, strict E.164 out", () => {
@@ -59,6 +59,23 @@ describe("contactSummary", () => {
     );
     expect(contactSummary("Koda", { email: "koda@agentmail.to", phone: null, prompt_from_number: null, inserted_at: "" })).toBe("Koda now has koda@agentmail.to");
     expect(contactSummary("Koda", null)).toBe("Koda now has an email and phone");
+  });
+});
+
+describe("consent + opt-out", () => {
+  test("the consent statement says who, what, how often, rates, STOP and HELP", () => {
+    expect(CONSENT_TEXT).toBe(
+      "By entering your number you agree to receive text messages from Fountain — your teammate's replies and occasional notifications — at this number. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out at any time, HELP for help.",
+    );
+  });
+  test("optOutNotice only when STOP was received", () => {
+    expect(optOutNotice({ prompt_from_number: "+15557654321", prompt_opted_out_at: null })).toBeNull();
+    expect(optOutNotice({ prompt_from_number: "+15557654321" })).toBeNull();
+    expect(optOutNotice(null)).toBeNull();
+    expect(optOutNotice({ prompt_from_number: "+15557654321", prompt_opted_out_at: "2026-08-19T12:00:00Z" })).toBe(
+      "Texts paused — STOP was received from +1 (555) 765-4321; text START to resume, or change the number.",
+    );
+    expect(optOutNotice({ prompt_from_number: null, prompt_opted_out_at: "2026-08-19T12:00:00Z" })).toBe("Texts paused — STOP was received from your number; text START to resume, or change the number.");
   });
 });
 

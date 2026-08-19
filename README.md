@@ -162,8 +162,15 @@ do, each on the public API:
   flag is on; when the instance has no AgentMail/AgentPhone keys it is shown
   disabled with that reason. A bad number is refused before anything is
   bought (inline, under the field); a provider refusal reads "AgentMail /
-  AgentPhone refused: …". Contact changes ride the `team` stream event, so
-  another tab picks them up.
+  AgentPhone refused: …". Entering the number is an SMS opt-in: the dialog
+  carries the consent statement (what Fountain texts you, frequency varies,
+  msg & data rates may apply, STOP to opt out, HELP for help) with the
+  server's Privacy Policy and Terms links, and the button reads **Agree &
+  give email & phone**. If STOP is received from your number the header
+  says "Texts paused — STOP was received from +1 (555) …; text START to
+  resume, or change the number"; **Change number…** (header, profile, row
+  menu) swaps `prompt_from_number` and clears the opt-out. Contact changes
+  ride the `team` stream event, so another tab picks them up.
 
 Pins, mutes, marks and drafts live in this browser's `localStorage`; Fountain
 has no field for them.
@@ -215,7 +222,7 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | Rename / History | `PATCH /api/team/:agent_id`, `GET /api/team/:agent_id/conversations` |
 | Fresh thread (same computer / new computer) | `POST /api/team/:agent_id/conversations`; new computer: `POST /api/conversations/:id/terminate` first, then the same call (which provisions now) |
 | Runners | `GET /api/runners`, `DELETE /api/runners/:id`; `sandbox.runner` + `machine_offline` presence on the roster |
-| Email & phone | `GET /api/team/comms`; `POST /api/team/:agent_id/contact` (`{prompt_from_number}`), `DELETE /api/team/:agent_id/contact`; `contact` on the roster |
+| Email & phone | `GET /api/team/comms`; `POST` / `PATCH /api/team/:agent_id/contact` (`{prompt_from_number}`), `DELETE /api/team/:agent_id/contact`; `contact` (incl. `prompt_opted_out_at`) on the roster |
 
 `EventSource` cannot send an `Authorization` header, so the stream is read
 with `fetch` and parsed in `src/lib/sse.ts`. The ACP output is turned into

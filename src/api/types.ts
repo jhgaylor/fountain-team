@@ -146,6 +146,8 @@ export interface Contact {
   email: string | null;
   phone: string | null;
   prompt_from_number: string | null;
+  /** set when STOP was received from `prompt_from_number`: texts are paused until START, or the number is changed */
+  prompt_opted_out_at?: string | null;
   inserted_at: string;
 }
 

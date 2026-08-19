@@ -129,6 +129,15 @@ export class FountainClient {
     return r.data;
   }
 
+  /**
+   * Change whose texts reach the teammate (PATCH): the new number replaces `prompt_from_number`
+   * and clears an opt-out. 200 with the teammate; 422 (`fieldErrors.prompt_from_number`); 404 without a contact.
+   */
+  async changeContactNumber(agentId: string, promptFromNumber: string): Promise<Teammate> {
+    const r = await this.json<{ data: Teammate }>("PATCH", `/api/team/${agentId}/contact`, { prompt_from_number: promptFromNumber });
+    return r.data;
+  }
+
   /** Release the teammate's inbox and number upstream and forget them. 404 without one, 502 `provider_error`. */
   releaseContact(agentId: string): Promise<void> {
     return this.json<void>("DELETE", `/api/team/${agentId}/contact`);

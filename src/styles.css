@@ -462,3 +462,6 @@ button.added:hover { color: var(--danger); border-color: color-mix(in srgb, var(
 .modal.contact .error-inline { display: block; margin-top: 4px; }
 .profile-contact { display: flex; flex-direction: column; gap: 8px; }
 .profile-contact .row { flex-wrap: wrap; }
+.modal.contact .consent { font-size: 13.5px; line-height: 1.45; color: var(--text); margin: 0; }
+.modal.contact .consent a { color: var(--brand); }
+.contact-paused { color: var(--warn); }

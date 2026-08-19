@@ -32,6 +32,7 @@ export function Profile({
   contactOffer = { kind: "absent" },
   onGiveContact,
   onReleaseContact,
+  onChangeContactNumber,
   initialTab = "profile",
 }: {
   client: FountainClient;
@@ -46,6 +47,7 @@ export function Profile({
   contactOffer?: ContactOffer;
   onGiveContact?: () => void;
   onReleaseContact?: () => void;
+  onChangeContactNumber?: () => void;
   initialTab?: Tab;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -363,7 +365,7 @@ export function Profile({
                 Email &amp; phone
                 {teammate.contact ? (
                   <>
-                    <ContactLine contact={teammate.contact} />
+                    <ContactLine contact={teammate.contact} onChangeNumber={onChangeContactNumber} />
                     <span className="hint">
                       Their own AgentMail inbox and AgentPhone number: from their next turn they can send, reply to and read email and send texts (
                       <code>email_send</code>, <code>sms_send</code>, …). A text from the number above reaches them as a prompt in this thread; they

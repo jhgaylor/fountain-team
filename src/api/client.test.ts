@@ -42,6 +42,29 @@ describe("contact API", () => {
     expect(JSON.parse(calls[0]!.init?.body as string)).toEqual({ prompt_from_number: "+15557654321" });
   });
 
+  test("changeContactNumber patches the number and returns the teammate", async () => {
+    const calls: Call[] = [];
+    const changed = { ...teammate, contact: { ...teammate.contact, prompt_from_number: "+15550001111", prompt_opted_out_at: null } };
+    stub(200, { data: changed }, calls);
+    const t = await client.changeContactNumber("a1", "+15550001111");
+    expect(t.contact?.prompt_from_number).toBe("+15550001111");
+    expect(t.contact?.prompt_opted_out_at).toBeNull();
+    expect(calls[0]!.url).toBe("https://fountain.test/api/team/a1/contact");
+    expect(calls[0]!.init?.method).toBe("PATCH");
+    expect(JSON.parse(calls[0]!.init?.body as string)).toEqual({ prompt_from_number: "+15550001111" });
+  });
+
+  test("changeContactNumber: 422 keeps the field error, 404 is not_found", async () => {
+    stub(422, { errors: { prompt_from_number: ["must be a phone number with country code, e.g. +15551234567"] } }, []);
+    const e1 = (await client.changeContactNumber("a1", "x").catch((e: unknown) => e)) as ApiError;
+    expect(e1.status).toBe(422);
+    expect(e1.fieldErrors.prompt_from_number).toEqual(["must be a phone number with country code, e.g. +15551234567"]);
+    stub(404, { error: "not_found" }, []);
+    const e2 = (await client.changeContactNumber("a1", "+15550001111").catch((e: unknown) => e)) as ApiError;
+    expect(e2.status).toBe(404);
+    expect(e2.code).toBe("not_found");
+  });
+
   test("releaseContact deletes and resolves on 204", async () => {
     const calls: Call[] = [];
     stub(204, undefined, calls);

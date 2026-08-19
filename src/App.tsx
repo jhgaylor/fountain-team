@@ -122,8 +122,8 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [reporting, setReporting] = useState<string | null | undefined>(undefined);
   /** may this account give teammates an email + phone, and can this instance; null until asked (or on a server without it) */
   const [comms, setComms] = useState<CommsStatus | null>(null);
-  /** the "Give email & phone" dialog, for this agent id */
-  const [contactFor, setContactFor] = useState<string | null>(null);
+  /** the "Give email & phone" / "Change number" dialog, for this agent id */
+  const [contactFor, setContactFor] = useState<{ agentId: string; mode: "give" | "change" } | null>(null);
   const [focusTurnId, setFocusTurnId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
@@ -777,10 +777,17 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         toast(`${t.name} already has an email and phone`);
         return;
       }
-      setContactFor(agentId);
+      setContactFor({ agentId, mode: "give" });
     },
     [comms, toast],
   );
+
+  /** Replace whose texts reach the teammate (also clears a STOP opt-out). */
+  const changeContactNumber = useCallback((agentId: string) => {
+    const t = teamRef.current.find((x) => x.agent_id === agentId);
+    if (!t?.contact) return;
+    setContactFor({ agentId, mode: "change" });
+  }, []);
 
   /** Take a teammate's email + phone away: released upstream, then gone from the roster. */
   const releaseContact = useCallback(
@@ -868,12 +875,15 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         case "contact":
           giveContact(agentId);
           break;
+        case "change-number":
+          changeContactNumber(agentId);
+          break;
         case "release-contact":
           releaseContact(agentId);
           break;
       }
     },
-    [team, client, updatePrefs, removeTeammate, retireThread, toast, select, giveContact, releaseContact],
+    [team, client, updatePrefs, removeTeammate, retireThread, toast, select, giveContact, changeContactNumber, releaseContact],
   );
 
   const orderedTeam = useMemo(() => sortPinnedFirst(team, prefs.pinned), [team, prefs.pinned]);
@@ -951,6 +961,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           comms={comms}
           onGiveContact={() => giveContact(selected.agent_id)}
           onReleaseContact={() => releaseContact(selected.agent_id)}
+          onChangeContactNumber={() => changeContactNumber(selected.agent_id)}
           activityOpen={prefs.activity}
           onActivityChange={(open) => updatePrefs((p) => ({ ...p, activity: open }))}
           fountainUrl={client.baseUrl}
@@ -981,10 +992,11 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           toast={toast}
         />
       )}
-      {contactFor && team.find((t) => t.agent_id === contactFor) && (
+      {contactFor && team.find((t) => t.agent_id === contactFor.agentId) && (
         <ContactDialog
           client={client}
-          teammate={team.find((t) => t.agent_id === contactFor)!}
+          teammate={team.find((t) => t.agent_id === contactFor.agentId)!}
+          mode={contactFor.mode}
           onClose={() => setContactFor(null)}
           onProvisioned={(updated) => {
             setContactFor(null);

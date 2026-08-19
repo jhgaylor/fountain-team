@@ -1,21 +1,33 @@
 import { useState } from "react";
 import type { Contact } from "../api/types";
-import { formatPhone } from "../lib/contact";
+import { formatPhone, optOutNotice } from "../lib/contact";
 
 /**
  * A teammate's own email and phone, monospace and copyable, plus the line
  * that says whose texts reach them. Used in the thread header strip and in
  * Customize → Profile.
  */
-export function ContactLine({ contact, compact = false }: { contact: Contact; compact?: boolean }) {
+export function ContactLine({ contact, compact = false, onChangeNumber }: { contact: Contact; compact?: boolean; onChangeNumber?: () => void }) {
+  const paused = optOutNotice(contact);
   return (
     <div className={`contact-line ${compact ? "compact" : ""}`}>
       {contact.email && <Copyable value={contact.email} label="email address" icon="✉" />}
       {contact.phone && <Copyable value={contact.phone} shown={formatPhone(contact.phone)} label="phone number" icon="☎" />}
-      {contact.prompt_from_number && (
-        <span className="muted small contact-from" title={`Texts from ${formatPhone(contact.prompt_from_number)} to ${contact.phone ? formatPhone(contact.phone) : "this number"} arrive in this thread as prompts; texts from anyone else are ignored`}>
-          Texts from <span className="mono">{formatPhone(contact.prompt_from_number)}</span> arrive here as prompts
+      {paused ? (
+        <span className="small contact-from contact-paused" role="status">
+          {paused}
         </span>
+      ) : (
+        contact.prompt_from_number && (
+          <span className="muted small contact-from" title={`Texts from ${formatPhone(contact.prompt_from_number)} to ${contact.phone ? formatPhone(contact.phone) : "this number"} arrive in this thread as prompts; texts from anyone else are ignored`}>
+            Texts from <span className="mono">{formatPhone(contact.prompt_from_number)}</span> arrive here as prompts
+          </span>
+        )
+      )}
+      {onChangeNumber && (
+        <button type="button" className="secondary small" onClick={onChangeNumber} title="Replace the number whose texts reach this teammate (clears a STOP)">
+          Change number…
+        </button>
       )}
     </div>
   );

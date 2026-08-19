@@ -65,6 +65,7 @@ interface Props {
   comms: CommsStatus | null;
   onGiveContact: () => void;
   onReleaseContact: () => void;
+  onChangeContactNumber: () => void;
   fountainUrl: string;
 }
 
@@ -99,6 +100,7 @@ export function Thread({
   comms,
   onGiveContact,
   onReleaseContact,
+  onChangeContactNumber,
   fountainUrl,
 }: Props) {
   const conv = teammate.conversation;
@@ -481,7 +483,7 @@ export function Thread({
 
       {teammate.contact && (
         <div className="contact-bar" role="region" aria-label={`${teammate.name}'s email and phone`}>
-          <ContactLine contact={teammate.contact} compact />
+          <ContactLine contact={teammate.contact} compact onChangeNumber={onChangeContactNumber} />
           <button type="button" className="secondary small" onClick={onReleaseContact} title="Release the inbox and number upstream; mail and texts to them stop">
             Release…
           </button>
@@ -509,6 +511,10 @@ export function Thread({
           onReleaseContact={() => {
             setProfileOpen(false);
             onReleaseContact();
+          }}
+          onChangeContactNumber={() => {
+            setProfileOpen(false);
+            onChangeContactNumber();
           }}
         />
       )}
