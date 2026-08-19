@@ -84,6 +84,12 @@ export function Thread({
   // decides (503 → queued). A stale "starting" must not lock the composer.
   const busy = machineOffline || teammate.presence.state === "working" || conv.status === "running";
   const runner = conv.sandbox?.runner ?? null;
+  // A conversation opened without a prompt stays "pending" until its first
+  // turn, and the server reads that as "starting computer" even once the
+  // sandbox is ready (fountain#839). Read the sandbox too.
+  const sandboxReady = teammate.presence.state === "starting" && conv.sandbox?.status === "ready";
+  const presenceState = sandboxReady ? "online" : teammate.presence.state;
+  const presenceLabel = sandboxReady ? "ready" : teammate.presence.label;
   const [draft, setDraft] = useState(() => loadDraft(conv.id));
   const [images, setImages] = useState<OutgoingImage[]>([]);
   const [sending, setSending] = useState(false);
@@ -351,9 +357,12 @@ export function Thread({
             <span className="hint">Enter to save · Esc to cancel · empty resets to the agent's name</span>
           </form>
         ) : (
-        <button className="thread-title as-button" onClick={() => setProfileOpen(true)} title="About this teammate">
+        <button className="thread-title as-button" onClick={() => setProfileOpen(true)} title="Profile: brain, what they do, computer, skills…">
           <div className="name">
             {teammate.name}
+            <span className="caret" aria-hidden>
+              ▾
+            </span>
             <span
               className="rename-pencil"
               role="button"
@@ -377,8 +386,8 @@ export function Thread({
           </div>
           <div className="sub">
             {teammate.name !== teammate.agent.name && <span>{teammate.agent.name} · </span>}
-            <span className={`presence inline ${teammate.presence.state}`} />
-            <span>{teammate.presence.label}</span>
+            <span className={`presence inline ${presenceState}`} />
+            <span>{presenceLabel}</span>
             {runner ? (
               <span className="muted" title={runner.path ?? undefined}>
                 {" "}
@@ -470,11 +479,14 @@ export function Thread({
           )}
           {!loading && turns.length === 0 && queued.length === 0 && (
             <div className="centered muted empty-thread">
-              <div className="glyph">💬</div>
-              {conv.status === "pending" ? (
-                <div>
-                  Starting <b>{teammate.name}</b>'s computer…
-                </div>
+              {teammate.presence.state === "starting" && conv.sandbox?.status !== "ready" ? (
+                <>
+                  <div className="glyph pulse">🖥️</div>
+                  <div>
+                    Starting <b>{teammate.name}</b>'s computer…
+                  </div>
+                  <div className="small">You can type now — it's sent the moment the computer is up.</div>
+                </>
               ) : conv.status === "failed" ? (
                 <div>
                   <b>{teammate.name}</b>'s computer failed to start — a message tries a new one.
@@ -484,11 +496,21 @@ export function Thread({
                   This thread is retired — a message starts <b>{teammate.name}</b> on a fresh computer. The old thread is under History.
                 </div>
               ) : (
-                <div>
-                  Say hello to <b>{teammate.name}</b>.
-                </div>
+                <>
+                  <div className="glyph">✅</div>
+                  <div>
+                    <b>{teammate.name}</b>'s computer is ready.
+                  </div>
+                  <div className="small">
+                    Say hello below — or{" "}
+                    <button type="button" className="linkish" onClick={() => setProfileOpen(true)}>
+                      customize {teammate.name}
+                    </button>{" "}
+                    first: what they do, which brain, their name.
+                  </div>
+                </>
               )}
-              <div className="small">
+              <div className="small muted">
                 {teammate.agent.runtime} · {teammate.agent.model}
               </div>
             </div>

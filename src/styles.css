@@ -289,8 +289,12 @@ label.check .hint { display: block; }
 .bubble.them { white-space: normal; }
 
 /* profile */
-.thread-title.as-button { background: transparent; border: 0; padding: 0; text-align: left; color: inherit; display: block; border-radius: 8px; }
+.thread-title.as-button { background: transparent; border: 0; padding: 2px 8px; margin-left: -8px; text-align: left; color: inherit; display: block; border-radius: 8px; }
 .thread-title.as-button:hover { background: var(--bg-2); }
+.thread-title.as-button .caret { margin-left: 6px; font-size: 11px; color: var(--muted); }
+.thread-title.as-button:hover .caret { color: var(--text); }
+.empty-thread .linkish { background: transparent; border: 0; padding: 0; color: var(--brand); font: inherit; cursor: pointer; text-decoration: underline; }
+.empty-thread .glyph.pulse { animation: pulse 1.2s infinite; }
 .profile-desc { color: var(--text-2); }
 .profile-grid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
 .profile-grid dt { color: var(--muted); font-size: 12px; padding-top: 2px; }
