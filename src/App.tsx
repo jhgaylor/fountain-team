@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, FountainClient, describeError } from "./api/client";
-import type { LogEvent, Schedule, SearchHit, TeamEvent, Teammate, Turn } from "./api/types";
+import type { CommsStatus, LogEvent, Schedule, SearchHit, TeamEvent, Teammate, Turn } from "./api/types";
 import { clearSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import { SettingsScreen } from "./components/Settings";
 import { completeLoginIfCallback, revoke } from "./lib/oauth";
@@ -16,6 +16,8 @@ import { Shortcuts } from "./components/Shortcuts";
 import { History } from "./components/History";
 import { Runners } from "./components/Runners";
 import { ReportDialog } from "./components/ReportDialog";
+import { ContactDialog } from "./components/ContactDialog";
+import { contactOffer } from "./lib/contact";
 import { buildReportContext } from "./lib/report";
 import { releaseImages, type OutgoingImage } from "./lib/images";
 import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
@@ -118,6 +120,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   /** the report dialog: about a teammate (agent id) or the page (null); undefined = closed */
   const [reporting, setReporting] = useState<string | null | undefined>(undefined);
+  /** may this account give teammates an email + phone, and can this instance; null until asked (or on a server without it) */
+  const [comms, setComms] = useState<CommsStatus | null>(null);
+  /** the "Give email & phone" dialog, for this agent id */
+  const [contactFor, setContactFor] = useState<string | null>(null);
   const [focusTurnId, setFocusTurnId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
@@ -177,6 +183,19 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   useEffect(() => {
     void refreshTeam();
   }, [refreshTeam]);
+
+  // Once per sign-in: whether teammates can be given an email + phone here. An
+  // older server 404s the route; that just means "no".
+  useEffect(() => {
+    let cancelled = false;
+    client
+      .commsStatus()
+      .then((c) => !cancelled && setComms(c))
+      .catch(() => !cancelled && setComms(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   // A debounced refresh for stage events, which arrive in bursts.
   const refreshTimer = useRef<number | null>(null);
@@ -744,6 +763,50 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     if (selected) removeTeammate(selected.agent_id);
   }, [selected, removeTeammate]);
 
+  /** Open the "Give email & phone" dialog — or say why not (no keys on the instance). */
+  const giveContact = useCallback(
+    (agentId: string) => {
+      const t = teamRef.current.find((x) => x.agent_id === agentId);
+      if (!t) return;
+      const offer = contactOffer(comms, t);
+      if (offer.kind === "disabled") {
+        toast(offer.reason, "error");
+        return;
+      }
+      if (t.contact) {
+        toast(`${t.name} already has an email and phone`);
+        return;
+      }
+      setContactFor(agentId);
+    },
+    [comms, toast],
+  );
+
+  /** Take a teammate's email + phone away: released upstream, then gone from the roster. */
+  const releaseContact = useCallback(
+    (agentId: string) => {
+      const t = teamRef.current.find((x) => x.agent_id === agentId);
+      if (!t?.contact) return;
+      if (!window.confirm(`Release ${t.name}'s email and phone? The inbox and number are released; texts and mail to them stop arriving.`)) return;
+      client
+        .releaseContact(agentId)
+        .then(() => {
+          setTeam((ts) => ts.map((x) => (x.agent_id === agentId ? { ...x, contact: null } : x)));
+          toast(`${t.name}'s email and phone are released`);
+          return refreshTeam();
+        })
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 404) {
+            // already gone — agree with the server
+            setTeam((ts) => ts.map((x) => (x.agent_id === agentId ? { ...x, contact: null } : x)));
+            return;
+          }
+          toast(describeError(err), "error");
+        });
+    },
+    [client, refreshTeam, toast],
+  );
+
   const onRowAction = useCallback(
     (agentId: string, action: RowAction) => {
       const t = team.find((x) => x.agent_id === agentId);
@@ -802,9 +865,15 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         case "report":
           setReporting(agentId);
           break;
+        case "contact":
+          giveContact(agentId);
+          break;
+        case "release-contact":
+          releaseContact(agentId);
+          break;
       }
     },
-    [team, client, updatePrefs, removeTeammate, retireThread, toast, select],
+    [team, client, updatePrefs, removeTeammate, retireThread, toast, select, giveContact, releaseContact],
   );
 
   const orderedTeam = useMemo(() => sortPinnedFirst(team, prefs.pinned), [team, prefs.pinned]);
@@ -836,6 +905,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         onRunners={openRunners}
         onReport={() => setReporting(selectedId ?? null)}
         connected={connected}
+        comms={comms}
       />
       {page === "runners" ? (
         <Runners client={client} onBack={() => select(null)} toast={toast} fountainUrl={client.baseUrl} refreshKey={teamVersion} />
@@ -878,6 +948,9 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onFocused={() => setFocusTurnId(null)}
           onAgentChanged={() => void refreshTeam()}
           onlyTeammate={team.length === 1}
+          comms={comms}
+          onGiveContact={() => giveContact(selected.agent_id)}
+          onReleaseContact={() => releaseContact(selected.agent_id)}
           activityOpen={prefs.activity}
           onActivityChange={(open) => updatePrefs((p) => ({ ...p, activity: open }))}
           fountainUrl={client.baseUrl}
@@ -905,6 +978,19 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
             queued: reporting ? (queues.get(reporting)?.length ?? 0) : 0,
           })}
           onClose={() => setReporting(undefined)}
+          toast={toast}
+        />
+      )}
+      {contactFor && team.find((t) => t.agent_id === contactFor) && (
+        <ContactDialog
+          client={client}
+          teammate={team.find((t) => t.agent_id === contactFor)!}
+          onClose={() => setContactFor(null)}
+          onProvisioned={(updated) => {
+            setContactFor(null);
+            setTeam((ts) => ts.map((t) => (t.agent_id === updated.agent_id ? { ...t, ...updated } : t)));
+            void refreshTeam();
+          }}
           toast={toast}
         />
       )}

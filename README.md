@@ -145,6 +145,26 @@ do, each on the public API:
   <machine> · path" in the header; when that machine is off its presence is
   *machine offline* and messages queue until the runner reconnects.
 
+- **Email & phone for a teammate** (row menu / Customize → Profile, when the
+  server offers it): **Give email & phone…** buys the teammate their own
+  AgentMail inbox and AgentPhone number — for this teammate only, and
+  **both are billed**, which the dialog says before Confirm. The one field
+  is *your* phone number (required, any common format): texts from it to
+  the teammate's new number arrive in this very thread as prompts; texts
+  from any other number are ignored. From their next turn the teammate has
+  email and SMS tools (`email_send`/`reply`/`list`/`get`, `sms_send`/`list`,
+  served by Fountain) and answers a text by text with `sms_send`, not in the
+  chat. A teammate with a contact shows it under the thread header and in
+  their profile — email and number in monospace with Copy, and "Texts from
+  +1 (555) … arrive here as prompts". **Release email & phone…** (there, or
+  the row menu) releases the inbox and number upstream. The affordance
+  appears only when `GET /api/team/comms` says the account's `team_comms`
+  flag is on; when the instance has no AgentMail/AgentPhone keys it is shown
+  disabled with that reason. A bad number is refused before anything is
+  bought (inline, under the field); a provider refusal reads "AgentMail /
+  AgentPhone refused: …". Contact changes ride the `team` stream event, so
+  another tab picks them up.
+
 Pins, mutes, marks and drafts live in this browser's `localStorage`; Fountain
 has no field for them.
 
@@ -195,6 +215,7 @@ Everything is the public API (`docs/api.md` in Fountain, "Team"):
 | Rename / History | `PATCH /api/team/:agent_id`, `GET /api/team/:agent_id/conversations` |
 | Fresh thread (same computer / new computer) | `POST /api/team/:agent_id/conversations`; new computer: `POST /api/conversations/:id/terminate` first, then the same call (which provisions now) |
 | Runners | `GET /api/runners`, `DELETE /api/runners/:id`; `sandbox.runner` + `machine_offline` presence on the roster |
+| Email & phone | `GET /api/team/comms`; `POST /api/team/:agent_id/contact` (`{prompt_from_number}`), `DELETE /api/team/:agent_id/contact`; `contact` on the roster |
 
 `EventSource` cannot send an `Authorization` header, so the stream is read
 with `fetch` and parsed in `src/lib/sse.ts`. The ACP output is turned into

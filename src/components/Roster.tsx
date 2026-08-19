@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import type { Teammate } from "../api/types";
+import type { CommsStatus, Teammate } from "../api/types";
+import { contactOffer } from "../lib/contact";
 import type { FountainClient } from "../api/client";
 import type { Prefs } from "../lib/prefs";
 import type { NotifyPermission } from "../lib/notify";
@@ -21,7 +22,9 @@ export type RowAction =
   | "retire-new"
   | "customize"
   | "computer"
-  | "report";
+  | "report"
+  | "contact"
+  | "release-contact";
 
 interface Props {
   client: FountainClient;
@@ -46,6 +49,8 @@ interface Props {
   onRunners: () => void;
   onReport: () => void;
   connected: boolean;
+  /** whether teammates can be given an email + phone here (null: not offered) */
+  comms: CommsStatus | null;
 }
 
 interface MenuState {
@@ -76,6 +81,7 @@ export function Roster({
   onRunners,
   onReport,
   connected,
+  comms,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [teamMenu, setTeamMenu] = useState<{ x: number; y: number } | null>(null);
@@ -179,6 +185,7 @@ export function Roster({
         <RowMenu
           teammate={teammates.find((t) => t.agent_id === menu.agentId) ?? null}
           prefs={prefs}
+          comms={comms}
           x={menu.x}
           y={menu.y}
           onClose={() => setMenu(null)}
@@ -272,6 +279,7 @@ function RosterRow({
 function RowMenu({
   teammate,
   prefs,
+  comms,
   x,
   y,
   onClose,
@@ -279,6 +287,7 @@ function RowMenu({
 }: {
   teammate: Teammate | null;
   prefs: Prefs;
+  comms: CommsStatus | null;
   x: number;
   y: number;
   onClose: () => void;
@@ -305,6 +314,7 @@ function RowMenu({
   const pinned = prefs.pinned.includes(teammate.agent_id);
   const muted = prefs.muted.includes(teammate.agent_id);
   const unread = teammate.unread || prefs.unread.includes(teammate.agent_id);
+  const offer = contactOffer(comms, teammate);
   // keep the menu on screen
   const left = Math.min(x, window.innerWidth - 240);
   const top = Math.min(y, window.innerHeight - 300);
@@ -338,6 +348,22 @@ function RowMenu({
       <button role="menuitem" onClick={() => onAction("history")}>
         History…
       </button>
+      {offer.kind !== "absent" && (
+        <button
+          role="menuitem"
+          onClick={() => onAction("contact")}
+          className={offer.kind === "disabled" ? "is-disabled" : ""}
+          aria-disabled={offer.kind === "disabled"}
+          title={offer.kind === "disabled" ? offer.reason : "Buy this teammate an AgentMail inbox and an AgentPhone number (billed); texts from your number become prompts"}
+        >
+          Give email &amp; phone…
+        </button>
+      )}
+      {teammate.contact && (
+        <button role="menuitem" onClick={() => onAction("release-contact")} title="Release the inbox and number upstream; mail and texts to them stop">
+          Release email &amp; phone…
+        </button>
+      )}
       <button role="menuitem" onClick={() => onAction("retire")} title="Retire this conversation and start a new one on the same computer — files and tools stay, the context is fresh. The thread stays in History.">
         Start a fresh thread…
       </button>
