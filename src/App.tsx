@@ -97,6 +97,9 @@ export function App() {
 function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: string | null; onSettings: () => void; onSignOut: () => void }) {
   const client = useMemo(() => new FountainClient(settings), [settings]);
   const [team, setTeam] = useState<Teammate[]>([]);
+  // false until the first roster fetch settles: nothing that means "empty"
+  // may render before we know, or every refresh flashes the onboarding card
+  const [teamLoaded, setTeamLoaded] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(() => idFromHash());
   const [page, setPage] = useState<"team" | "routines" | "runners">(() => pageFromHash());
@@ -111,6 +114,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
+  const [loadedConvId, setLoadedConvId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [connected, setConnected] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -156,6 +160,8 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     } catch (err) {
       setTeamError(describeError(err));
       return null;
+    } finally {
+      setTeamLoaded(true);
     }
   }, [client]);
 
@@ -210,6 +216,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         if (cancelled) return;
         setTurns(t);
         setEvents(e);
+        setLoadedConvId(selectedConvId);
       })
       .catch((err) => !cancelled && toast(describeError(err), "error"))
       .finally(() => !cancelled && setThreadLoading(false));
@@ -711,6 +718,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     <div className={`app ${selected || page !== "team" ? "thread-open" : ""}`}>
       <Roster
         client={client}
+        loaded={teamLoaded}
         teammates={orderedTeam}
         selectedId={selectedId}
         prefs={prefs}
@@ -749,7 +757,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           turns={turns}
           events={events}
           queued={queues.get(selected.agent_id) ?? []}
-          loading={threadLoading}
+          loading={threadLoading || loadedConvId !== selected.conversation.id}
           onSend={onSend}
           onCancelQueued={onCancelQueued}
           onInterrupt={onInterrupt}
@@ -767,6 +775,8 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onActivityChange={(open) => updatePrefs((p) => ({ ...p, activity: open }))}
           fountainUrl={client.baseUrl}
         />
+      ) : !teamLoaded ? (
+        <section className="thread placeholder" aria-busy="true" />
       ) : team.length === 0 ? (
         <Onboarding onAdd={() => setAdding(true)} error={teamError} />
       ) : (

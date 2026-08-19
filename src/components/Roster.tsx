@@ -11,6 +11,8 @@ export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" 
 
 interface Props {
   client: FountainClient;
+  /** false until the first roster fetch settles — the empty state must not flash before that */
+  loaded: boolean;
   teammates: Teammate[];
   selectedId: string | null;
   prefs: Prefs;
@@ -37,6 +39,7 @@ interface MenuState {
 
 export function Roster({
   client,
+  loaded,
   teammates,
   selectedId,
   prefs,
@@ -106,7 +109,7 @@ export function Roster({
         </div>
       </header>
       <div className="roster-list">
-        {teammates.length === 0 && (
+        {loaded && teammates.length === 0 && (
           <div className="empty">
             <p>No one on the team yet.</p>
             <p className="muted">
