@@ -13,8 +13,8 @@
 import type { LogEvent } from "../api/types";
 
 export type Block =
-  | { kind: "text"; body: string }
-  | { kind: "thinking"; body: string }
+  | { kind: "text"; body: string; startedAt: string | null; endedAt: string | null }
+  | { kind: "thinking"; body: string; startedAt: string | null; endedAt: string | null }
   | {
       kind: "tool";
       id: string | null;
@@ -35,10 +35,15 @@ export function blocksForTurn(events: LogEvent[], runtime: string): Block[] {
   const out: Block[] = [];
   const tools = new Map<string, Extract<Block, { kind: "tool" }>>();
 
-  const pushText = (kind: "text" | "thinking", body: string) => {
+  // startedAt/endedAt are the log timestamps of the first and last chunk
+  // that landed in the block — "when the reply arrived", not when the model
+  // produced it (one flush apart at most).
+  const pushText = (kind: "text" | "thinking", body: string, ts: string | null) => {
     const last = out[out.length - 1];
-    if (last && last.kind === kind) last.body += body;
-    else out.push({ kind, body });
+    if (last && last.kind === kind) {
+      last.body += body;
+      if (ts) last.endedAt = ts;
+    } else out.push({ kind, body, startedAt: ts, endedAt: ts });
   };
 
   for (const ev of events) {
@@ -54,12 +59,12 @@ export function blocksForTurn(events: LogEvent[], runtime: string): Block[] {
         switch (update.sessionUpdate) {
           case "agent_message_chunk": {
             const t = contentText(update.content);
-            if (t) pushText("text", t);
+            if (t) pushText("text", t, ev.ts ?? null);
             break;
           }
           case "agent_thought_chunk": {
             const t = contentText(update.content);
-            if (t) pushText("thinking", t);
+            if (t) pushText("thinking", t, ev.ts ?? null);
             break;
           }
           case "tool_call": {
@@ -97,7 +102,7 @@ export function blocksForTurn(events: LogEvent[], runtime: string): Block[] {
     } else if (ev.stream === "stdout" && runtime !== "claude" && runtime !== "codex" && runtime !== "opencode") {
       // Legacy dialects: show the text as-is rather than parse four vendor
       // formats here. Claude/codex/opencode only ever spoke ACP on this page.
-      pushText("text", ev.data);
+      pushText("text", ev.data, ev.ts ?? null);
     }
   }
   return out;
