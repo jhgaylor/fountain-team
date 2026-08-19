@@ -39,6 +39,8 @@ interface Props {
   onError: (text: string) => void;
   onRoutines: () => void;
   onHistory: () => void;
+  /** End the current computer so the next message starts a fresh one (skills/apps land then). */
+  onRetire: () => void;
   onRename: (name: string | null) => Promise<void>;
   /** start in the rename editor (from the row menu) */
   renaming: boolean;
@@ -68,6 +70,7 @@ export function Thread({
   onError,
   onRoutines,
   onHistory,
+  onRetire,
   onRename,
   renaming,
   onRenamingChange,
@@ -446,7 +449,7 @@ export function Thread({
         </div>
       </header>
 
-      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} onAgentChanged={onAgentChanged} fountainUrl={fountainUrl} />}
+      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} onAgentChanged={onAgentChanged} onRetire={() => { setProfileOpen(false); onRetire(); }} />}
       {treeOpen && spawned.length > 0 && (
         <div className="spawned">
           <div className="spawned-head small muted">Started by {teammate.name} — sub-conversations in this thread's spawn tree</div>
@@ -506,7 +509,7 @@ export function Thread({
                     <button type="button" className="linkish" onClick={() => setProfileOpen(true)}>
                       customize {teammate.name}
                     </button>{" "}
-                    first: what they do, which brain, their name.
+                    first: what they do, which brain, skills, the apps they can use.
                   </div>
                 </>
               )}

@@ -680,7 +680,10 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           toast("That thread is already retired — the next message starts a fresh one");
           return;
         }
+        // A thread nothing has happened on yet has nothing to lose — no need to ask
+        // (customize → "restart their computer" is the usual way here).
         if (
+          t.conversation.turn_count > 0 &&
           !window.confirm(
             `Start a fresh thread with ${t.name} on a new computer? This ends the current conversation and shuts down its computer (anything not committed or pushed from that computer is gone). The thread stays under History; the next message starts a new one.`,
           )
@@ -841,6 +844,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onError={(text) => toast(text, "error")}
           onRoutines={() => openRoutines(selected.agent_id)}
           onHistory={() => setHistoryFor(selected.agent_id)}
+          onRetire={() => retireThread(selected.agent_id, { newComputer: true })}
           onRename={(name) => renameTeammate(selected.agent_id, name)}
           renaming={renaming}
           onRenamingChange={setRenaming}

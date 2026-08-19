@@ -59,15 +59,40 @@ export interface Agent {
   avatar_media_type?: string | null;
   /** present on GET /api/agents/:id */
   system?: string | null;
-  skills?: unknown[] | null;
-  mcp_servers?: Record<string, unknown> | null;
+  skills?: Skill[] | null;
+  mcp_servers?: Record<string, McpServer> | null;
   metadata?: Record<string, unknown> | null;
   sandbox_provider?: string | null;
 }
 
+/**
+ * One of an agent's skills: installed from GitHub through the skills.sh CLI
+ * (`source` = owner/repo; `name` picks one skill out of a repo that holds
+ * several; `ref` pins a tag/branch/sha), or written inline — a whole SKILL.md.
+ */
+export type Skill = { source: string; name?: string; ref?: string; content?: undefined } | { name: string; content: string; source?: undefined };
+
+/**
+ * One of an agent's MCP servers, in Claude's own config shape: a hosted
+ * server (`type` http/sse + `url`, optional `headers`) or a local one the
+ * computer runs (`command` + `args`, optional `env`). `${VAR}` in any string
+ * is replaced from the environment's secrets when the computer is set up.
+ */
+export type McpServer =
+  | { type: "http" | "sse"; url: string; headers?: Record<string, string>; command?: undefined }
+  | { type?: undefined; command: string; args?: string[]; env?: Record<string, string>; url?: undefined };
+
 export interface Environment {
   id: string;
   name: string;
+}
+
+/** A row of GET /api/environments/:id/secrets — the key only; values are write-only. */
+export interface EnvironmentSecret {
+  id?: string;
+  key: string;
+  inserted_at?: string;
+  updated_at?: string;
 }
 
 export interface Vault {
