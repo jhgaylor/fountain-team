@@ -11,15 +11,25 @@ import { Markdown } from "./Markdown";
  * rows, each expandable to the calls with their duration and output. Built
  * from the same ACP events the bubbles use; live because the events are.
  */
+export interface ActivityFocus {
+  turnId: string;
+  /** index into the turn's grouped feed items */
+  index: number;
+  /** changes on every click so the same row can be re-focused */
+  nonce: number;
+}
+
 export function Activity({
   teammate,
   turns,
   events,
+  focus,
   onClose,
 }: {
   teammate: Teammate;
   turns: Turn[];
   events: LogEvent[];
+  focus: ActivityFocus | null;
   onClose: () => void;
 }) {
   const conv = teammate.conversation;
@@ -67,6 +77,21 @@ export function Activity({
     if (el) el.scrollTop = el.scrollHeight;
   }, [conv.id]);
 
+  // A click on a tool line in the chat: open that run here and bring it into view.
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focus) return;
+    const key = `${focus.turnId}:${focus.index}`;
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-feed="${key}"]`);
+    if (!el) return;
+    setFollowing(false);
+    const details = el.matches("details") ? (el as HTMLDetailsElement) : el.querySelector("details");
+    if (details) details.open = true;
+    el.scrollIntoView({ block: "center" });
+    setFlash(key);
+    window.setTimeout(() => setFlash((f) => (f === key ? null : f)), 2000);
+  }, [focus, feed.length]);
+
   return (
     <aside className="activity" aria-label="Activity">
       <header className="activity-head">
@@ -95,7 +120,9 @@ export function Activity({
               <span className="you">You</span> · {turn.prompt.length > 140 ? `${turn.prompt.slice(0, 140)}…` : turn.prompt || (turn.image_count ? `${turn.image_count} image(s)` : "")}
             </div>
             {items.map((item, i) => (
-              <FeedItemView key={i} item={item} />
+              <div key={i} data-feed={`${turn.id}:${i}`} className={flash === `${turn.id}:${i}` ? "feed-flash" : ""}>
+                <FeedItemView item={item} />
+              </div>
             ))}
             {(turn.status === "pending" || turn.status === "running") && items.length === 0 && <div className="muted small">working…</div>}
             {(turn.status === "failed" || turn.status === "cancelled") && <div className="muted small">turn {turn.status}</div>}
