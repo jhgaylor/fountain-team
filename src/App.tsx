@@ -10,6 +10,8 @@ import { AddDialog } from "./components/AddDialog";
 import { Routines } from "./components/Routines";
 import { Palette, type PaletteChoice } from "./components/Palette";
 import { teamManifest } from "./lib/manifest";
+import { Onboarding } from "./components/Onboarding";
+import { Shortcuts } from "./components/Shortcuts";
 import { releaseImages, type OutgoingImage } from "./lib/images";
 import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
 import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
@@ -99,6 +101,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [routinesFor, setRoutinesFor] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [focusTurnId, setFocusTurnId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
@@ -404,16 +407,37 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
 
   // ── palette (⌘K) ──────────────────────────────────────────────────────────
 
+  const orderedTeamRef = useRef<Teammate[]>([]);
   useEffect(() => {
+    const typing = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+    };
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
+        return;
+      }
+      if (e.altKey && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+        const rows = orderedTeamRef.current;
+        if (!rows.length) return;
+        e.preventDefault();
+        const cur = rows.findIndex((t) => t.agent_id === selectedRef.current);
+        const next = e.key === "ArrowDown" ? Math.min(cur + 1, rows.length - 1) : Math.max(cur - 1, 0);
+        if (next !== cur || cur === -1) select(rows[next === -1 ? 0 : next]!.agent_id);
+        return;
+      }
+      if (e.key === "?" && !typing(e) && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [select]);
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selectedId;
 
   const exportTeam = useCallback(async () => {
     if (!team.length) {
@@ -609,6 +633,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   );
 
   const orderedTeam = useMemo(() => sortPinnedFirst(team, prefs.pinned), [team, prefs.pinned]);
+  orderedTeamRef.current = orderedTeam;
 
   const onTeamIds = useMemo(() => new Set(team.map((t) => t.agent_id)), [team]);
 
@@ -629,6 +654,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         onRoutines={() => openRoutines()}
         onPalette={() => setPaletteOpen(true)}
         onExport={() => void exportTeam()}
+        onShortcuts={() => setShortcutsOpen(true)}
         connected={connected}
       />
       {page === "routines" ? (
@@ -662,17 +688,14 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           onFocused={() => setFocusTurnId(null)}
           fountainUrl={client.baseUrl}
         />
+      ) : team.length === 0 ? (
+        <Onboarding onAdd={() => setAdding(true)} error={teamError} />
       ) : (
         <section className="thread placeholder">
-          <div className="centered muted">
-            {teamError
-              ? teamError
-              : team.length > 0
-                ? "Pick a teammate to open the conversation."
-                : "Your team's conversations will show here."}
-          </div>
+          <div className="centered muted">{teamError ? teamError : "Pick a teammate to open the conversation."}</div>
         </section>
       )}
+      {shortcutsOpen && <Shortcuts onClose={() => setShortcutsOpen(false)} />}
       {paletteOpen && <Palette client={client} teammates={orderedTeam} onChoose={onPaletteChoice} onClose={() => setPaletteOpen(false)} />}
       {adding && (
         <AddDialog

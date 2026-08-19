@@ -5,6 +5,7 @@ import type { Prefs } from "../lib/prefs";
 import type { NotifyPermission } from "../lib/notify";
 import { Avatar } from "./Avatar";
 import { Menu } from "./Menu";
+import { markdownToText } from "../lib/markdown";
 
 export type RowAction = "pin" | "mute" | "unread" | "read" | "copy-id" | "open" | "remove";
 
@@ -23,6 +24,7 @@ interface Props {
   onRoutines: () => void;
   onPalette: () => void;
   onExport: () => void;
+  onShortcuts: () => void;
   connected: boolean;
 }
 
@@ -47,6 +49,7 @@ export function Roster({
   onRoutines,
   onPalette,
   onExport,
+  onShortcuts,
   connected,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -136,6 +139,7 @@ export function Roster({
           items={[
             { label: "⏰  Routines", onSelect: onRoutines },
             { label: "⤓  Export team as a manifest", onSelect: onExport },
+            { label: "⌨  Keyboard shortcuts", onSelect: onShortcuts },
             { label: "⚙  Settings", onSelect: onSettings, divider: true },
             { label: "⏻  Sign out", onSelect: onSignOut, danger: true },
           ]}
@@ -304,7 +308,7 @@ function PreviewText({ t }: { t: Teammate }) {
   return (
     <>
       {p.kind === "you" && "You: "}
-      {p.text}
+      {p.text ? markdownToText(p.text) : ""}
     </>
   );
 }

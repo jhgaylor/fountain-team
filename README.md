@@ -72,6 +72,14 @@ do, each on the public API:
   button in the thread header lists them (`/tree`).
 - **Export** (team menu ⋯): the team as a `fountain apply` manifest —
   one `Agent` document per teammate; import is `fountain apply -f team.yml`.
+- **Markdown** in replies — headings, lists, tables, code blocks with Copy,
+  links (http/https/mailto only) — rendered from a small parser in
+  `src/lib/markdown.ts` to React elements, never HTML, so nothing an agent
+  writes can inject markup. Roster previews show the plain text.
+- **About a teammate** (click the thread title): the agent behind them —
+  model, runtime, description, system prompt, skills, MCP servers,
+  environment, vault, computer — and links to edit the agent in Fountain.
+- **Keyboard**: ⌘K search, Alt+↑/↓ to switch teammates, `?` for the list.
 
 Pins, mutes, marks and drafts live in this browser's `localStorage`; Fountain
 has no field for them.
