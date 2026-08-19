@@ -18,6 +18,8 @@ import { imageFilesFrom, readImage, releaseImages, type OutgoingImage } from "..
 import type { QueuedMessage } from "../lib/queue";
 import { isNearBottom, TURN_WINDOW, windowTail } from "../lib/scroll";
 import { formatTime } from "./Roster";
+import { Markdown } from "./Markdown";
+import { Profile } from "./Profile";
 
 interface Props {
   client: FountainClient;
@@ -150,6 +152,7 @@ export function Thread({
   }, [focusTurnId, turns, visible, onFocused]);
 
   // The spawn tree: what this teammate started (sub-conversations over the API).
+  const [profileOpen, setProfileOpen] = useState(false);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [treeOpen, setTreeOpen] = useState(false);
   useEffect(() => {
@@ -268,7 +271,7 @@ export function Thread({
         <button className="back" onClick={onBack} aria-label="Back to the team">
           ‹ Team
         </button>
-        <div className="thread-title">
+        <button className="thread-title as-button" onClick={() => setProfileOpen(true)} title="About this teammate">
           <div className="name">{teammate.name}</div>
           <div className="sub">
             {teammate.name !== teammate.agent.name && <span>{teammate.agent.name} · </span>}
@@ -282,7 +285,7 @@ export function Thread({
               </span>
             )}
           </div>
-        </div>
+        </button>
         <div className="row">
           {spawned.length > 0 && (
             <button className="secondary small" onClick={() => setTreeOpen((o) => !o)} title="Conversations this teammate started" aria-expanded={treeOpen}>
@@ -312,6 +315,7 @@ export function Thread({
         </div>
       </header>
 
+      {profileOpen && <Profile client={client} teammate={teammate} onClose={() => setProfileOpen(false)} fountainUrl={fountainUrl} />}
       {treeOpen && spawned.length > 0 && (
         <div className="spawned">
           <div className="spawned-head small muted">Started by {teammate.name} — sub-conversations in this thread's spawn tree</div>
@@ -558,7 +562,9 @@ function BlockView({ block }: { block: Block }) {
     case "text":
       return (
         <div className="bubble them">
-          <div className="body">{block.body}</div>
+          <div className="body">
+            <Markdown text={block.body} />
+          </div>
         </div>
       );
     case "thinking":
