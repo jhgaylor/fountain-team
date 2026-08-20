@@ -22,6 +22,9 @@ jobs:
       - run: bun run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          # Public phc_ project key; recordings are off when this repo
+          # variable is unset (Settings → Secrets and variables → Actions).
+          VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
