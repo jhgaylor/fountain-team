@@ -4,6 +4,7 @@ import { describeError } from "../api/client";
 import type { Schedule, ScheduleInput, Teammate } from "../api/types";
 import { CRON_PRESETS, describeCron, isCronLike } from "../lib/cron";
 import { Avatar } from "./Avatar";
+import { transcriptUrl } from "../lib/transcript";
 
 
 interface Props {
@@ -126,7 +127,7 @@ export function Routines({ client, teammates, schedules, forAgentId, onRefresh, 
                               <>
                                 {" "}
                                 (
-                                <a href={`${fountainUrl}/conversations/${s.last_conversation_id}`} target="_blank" rel="noreferrer">
+                                <a href={transcriptUrl(fountainUrl, s.last_conversation_id)} target="_blank" rel="noreferrer">
                                   conversation
                                 </a>
                                 )

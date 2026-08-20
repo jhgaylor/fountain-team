@@ -5,6 +5,7 @@ import type { HistoryConversation, LogEvent, Teammate, Turn } from "../api/types
 import { formatUsage } from "../lib/format";
 import { formatTime } from "./Roster";
 import { TurnView } from "./Thread";
+import { transcriptUrl } from "../lib/transcript";
 
 const THREAD_STREAMS = ["acp", "stdout", "stage"];
 
@@ -137,7 +138,7 @@ export function History({
         {open && <ReadOnlyThread client={client} conversation={open} />}
         {open && (
           <div className="row end">
-            <a className="button secondary small" href={`${fountainUrl}/conversations/${open.id}`} target="_blank" rel="noreferrer">
+            <a className="button secondary small" href={transcriptUrl(fountainUrl, open.id)} target="_blank" rel="noreferrer">
               Open in Fountain
             </a>
           </div>

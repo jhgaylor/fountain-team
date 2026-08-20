@@ -23,6 +23,7 @@ import { releaseImages, type OutgoingImage } from "./lib/images";
 import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
 import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
 import { drain, enqueue, newQueuedId, removeQueued, withoutConversation, type QueuedMessage } from "./lib/queue";
+import { loadTranscriptBase, transcriptUrl } from "./lib/transcript";
 
 const THREAD_STREAMS = ["acp", "stdout", "stage"];
 
@@ -183,6 +184,13 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   useEffect(() => {
     void refreshTeam();
   }, [refreshTeam]);
+
+  // Once per sign-in: where this Fountain keeps its conversations app, so a
+  // "full transcript" link goes straight there rather than through a redirect
+  // that wants a browser session this reader may not have.
+  useEffect(() => {
+    void loadTranscriptBase(client);
+  }, [client]);
 
   // Once per sign-in: whether teammates can be given an email + phone here. An
   // older server 404s the route; that just means "no".
@@ -540,7 +548,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         return;
       }
       // An older conversation of a teammate, or one outside the team: Fountain shows it.
-      window.open(`${client.baseUrl}/conversations/${hit.conversation_id}`, "_blank", "noopener");
+      window.open(transcriptUrl(client.baseUrl, hit.conversation_id), "_blank", "noopener");
     },
     [client.baseUrl, select],
   );
@@ -845,7 +853,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           }
           break;
         case "open":
-          if (t) window.open(`${client.baseUrl}/conversations/${t.conversation.id}`, "_blank", "noopener");
+          if (t) window.open(transcriptUrl(client.baseUrl, t.conversation.id), "_blank", "noopener");
           break;
         case "remove":
           removeTeammate(agentId);
