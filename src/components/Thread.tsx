@@ -24,6 +24,7 @@ import { ContactLine } from "./ContactLine";
 import { contactOffer } from "../lib/contact";
 import { Activity, type ActivityFocus } from "./Activity";
 import { groupBlocks, toolsLabel, duration, type FeedItem } from "../lib/feed";
+import { transcriptUrl } from "../lib/transcript";
 
 interface Props {
   client: FountainClient;
@@ -468,7 +469,7 @@ export function Thread({
           )}
           <a
             className="button secondary small"
-            href={`${fountainUrl}/conversations/${conv.id}`}
+            href={transcriptUrl(fountainUrl, conv.id)}
             target="_blank"
             rel="noreferrer"
             title="The full conversation view in Fountain: stages, tool calls, raw output"
@@ -525,7 +526,7 @@ export function Thread({
             {spawned.map((n) => (
               <li key={n.id}>
                 <span className={`presence inline ${n.status === "running" ? "working" : n.status === "failed" ? "failed" : "online"}`} />
-                <a href={`${fountainUrl}/conversations/${n.id}`} target="_blank" rel="noreferrer">
+                <a href={transcriptUrl(fountainUrl, n.id)} target="_blank" rel="noreferrer">
                   {n.title || n.id.slice(0, 8)}
                 </a>
                 <span className="muted small">

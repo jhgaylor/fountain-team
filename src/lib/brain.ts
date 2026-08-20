@@ -14,6 +14,8 @@ export interface Catalog {
   avatar?: { bases: string[]; moods: string[] };
   /** which sandbox providers this Fountain can place a computer on, and the one it uses by default */
   sandbox_providers?: { enabled: string[]; default: string };
+  /** where this Fountain sends a human to read a transcript or the roster; null for an app it does not have */
+  apps?: { conversations: string | null; team: string | null };
 }
 
 export interface Brain {
