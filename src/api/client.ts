@@ -23,6 +23,7 @@ import type {
   Teammate,
   TreeNode,
   Turn,
+  PermissionVerdict,
   Vault,
 } from "./types";
 import { readSse, type SseMessage } from "../lib/sse";
@@ -333,6 +334,7 @@ export class FountainClient {
       mcp_servers: Record<string, McpServer>;
       environment_id: string | null;
       sandbox_provider: string | null;
+      permission_policy: Record<string, PermissionVerdict>;
     }>,
   ): Promise<Agent> {
     return this.json<{ data: Agent }>("PUT", `/api/agents/${agentId}`, input).then((r) => r.data);

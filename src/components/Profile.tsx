@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FountainClient } from "../api/client";
 import { describeError } from "../api/client";
-import type { Agent, Environment, Runner, Teammate } from "../api/types";
+import type { Agent, Environment, PermissionVerdict, Runner, Teammate } from "../api/types";
 import { formatUsage } from "../lib/format";
 import { brainsFrom, CREDENTIAL_PROVIDERS, keySource, labelFor, personaPrompt, type Brain, type Catalog } from "../lib/brain";
 import { Avatar } from "./Avatar";
@@ -55,7 +55,7 @@ export function Profile({
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [creds, setCreds] = useState<Record<string, boolean>>({});
   const [persona, setPersona] = useState<string | null>(null);
-  const [saving, setSaving] = useState<"brain" | "persona" | "key" | "computer" | null>(null);
+  const [saving, setSaving] = useState<"brain" | "persona" | "key" | "computer" | "permission" | null>(null);
   const [runners, setRunners] = useState<Runner[] | null>(null);
   const [keyDraft, setKeyDraft] = useState("");
   const [keyMessage, setKeyMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -185,6 +185,32 @@ export function Profile({
     }
   };
 
+  // ── what answers before they run a tool (fountain#939) ─────────────────────
+  //
+  // The whole policy is a map of key to verdict. This offers the one key that
+  // covers everything, `default`, because a teammate's owner is deciding "may
+  // they act on their own", not writing a rule per tool. A policy set
+  // elsewhere with per-tool keys is left alone: changing the default keeps the
+  // rest of the map.
+  const permission: PermissionVerdict = (a.permission_policy?.default as PermissionVerdict) ?? "auto_allow";
+
+  const changePermission = async (value: string) => {
+    if (!agent) return;
+    const verdict = value as PermissionVerdict;
+    if (permission === verdict) return;
+    setSaving("permission");
+    try {
+      const next = { ...(agent.permission_policy ?? {}) };
+      if (verdict === "auto_allow") delete next.default;
+      else next.default = verdict;
+      onAgentUpdated(await client.updateAgent(agent.id, { permission_policy: next }));
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const envName = (id: string | null) => (id ? (envs.find((e) => e.id === id)?.name ?? id.slice(0, 8)) : null);
   const usedEnv = conv.environment_id ?? a.environment_id;
   const retired = conv.status === "terminated";
@@ -301,6 +327,19 @@ export function Profile({
                 </div>
               )}
               <span className="hint">One line is plenty — it becomes their description and the start of their instructions.</span>
+            </label>
+
+            <label className="profile-field">
+              Before they run a tool
+              <select value={permission} disabled={!agent || saving === "permission"} onChange={(e) => void changePermission(e.target.value)}>
+                <option value="auto_allow">Let them run it</option>
+                <option value="ask">Ask me first</option>
+                <option value="auto_deny">Refuse it</option>
+              </select>
+              <span className="hint">
+                "Ask me first" puts a card in the thread and the tool waits for it. Nobody answers in five minutes and it's
+                refused, which doesn't stop the turn.
+              </span>
             </label>
 
             <label className="profile-field">

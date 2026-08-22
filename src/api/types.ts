@@ -63,7 +63,17 @@ export interface Agent {
   mcp_servers?: Record<string, McpServer> | null;
   metadata?: Record<string, unknown> | null;
   sandbox_provider?: string | null;
+  /**
+   * What answers before the teammate runs a tool (fountain#939). A map of key
+   * to verdict, plus a "default" key. A key is matched against the tool card's
+   * title first and then ACP's kind, so `execute` covers shell commands
+   * whatever the command is (fountain#958).
+   */
+  permission_policy?: Record<string, PermissionVerdict> | null;
 }
+
+/** auto_allow runs the tool, ask waits for a human, auto_deny refuses. */
+export type PermissionVerdict = "auto_allow" | "ask" | "auto_deny";
 
 /**
  * One of an agent's skills: installed from GitHub through the skills.sh CLI

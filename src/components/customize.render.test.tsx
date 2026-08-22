@@ -107,6 +107,20 @@ describe("customize panel", () => {
     expect(html).toContain("How to set one up");
   });
 
+  test("the tool field shows what answers before they act, from the agent's own policy", () => {
+    // fountain#939. Nothing set is "let them run it", which is what every
+    // teammate did before the policy existed.
+    const html = renderToString(<Profile client={client} teammate={teammate} onClose={() => {}} />);
+    expect(html).toContain("Before they run a tool");
+    expect(html).toContain("Ask me first");
+    expect(html).toContain("five minutes");
+    expect(html).toContain('<option value="auto_allow" selected=""');
+
+    const asking = { ...teammate, agent: { ...agent, permission_policy: { default: "ask" as const } } };
+    const askingHtml = renderToString(<Profile client={client} teammate={asking} onClose={() => {}} />);
+    expect(askingHtml).toContain('<option value="ask" selected=""');
+  });
+
   test("an empty teammate renders both tabs with nothing yet", () => {
     const bare = { ...agent, skills: [], mcp_servers: {} };
     expect(renderToString(<SkillsTab client={client} agent={bare} name="Koda" onAgent={() => {}} />)).toContain("nothing yet");
