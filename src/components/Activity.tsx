@@ -3,6 +3,7 @@ import type { LogEvent, Teammate, Turn } from "../api/types";
 import { blocksForTurn } from "../lib/acp";
 import { duration, groupBlocks, relativeTime, toolsLabel, type FeedItem, type ToolBlock } from "../lib/feed";
 import { isNearBottom } from "../lib/scroll";
+import { describeResolution, resolutions as resolutionsFrom, type PermissionResolution } from "../lib/permissions";
 import { Markdown } from "./Markdown";
 
 /**
@@ -53,6 +54,10 @@ export function Activity({
     }
     return m;
   }, [events]);
+
+  // The `request` stage events carry no turn_id, so they are read from the
+  // whole conversation and paired to the block on request_id.
+  const askResolutions = useMemo(() => resolutionsFrom(events), [events]);
 
   const feed = useMemo(
     () =>
@@ -121,7 +126,7 @@ export function Activity({
             </div>
             {items.map((item, i) => (
               <div key={i} data-feed={`${turn.id}:${i}`} className={flash === `${turn.id}:${i}` ? "feed-flash" : ""}>
-                <FeedItemView item={item} />
+                <FeedItemView item={item} resolution={item.kind === "permission" ? (askResolutions.get(item.request.requestId) ?? null) : null} />
               </div>
             ))}
             {(turn.status === "pending" || turn.status === "running") && items.length === 0 && <div className="muted small">working…</div>}
@@ -133,7 +138,7 @@ export function Activity({
   );
 }
 
-export function FeedItemView({ item }: { item: FeedItem }) {
+export function FeedItemView({ item, resolution = null }: { item: FeedItem; resolution?: PermissionResolution | null }) {
   switch (item.kind) {
     case "text":
       return (
@@ -152,6 +157,21 @@ export function FeedItemView({ item }: { item: FeedItem }) {
       );
     case "tools":
       return <ToolsRow tools={item.tools} />;
+    // Read-only here on purpose: the answerable card lives in the thread, and
+    // two live copies of one blocked request would race each other.
+    case "permission": {
+      const req = item.request;
+      return (
+        <div className={`activity-ask ${resolution ? "resolved" : "open"}`}>
+          <span className="ask-glyph" aria-hidden>
+            🔐
+          </span>
+          <span className="tool-name">{req.name}</span>
+          {req.summary && <span className="tool-summary">{req.summary}</span>}
+          <span className="muted small">{resolution ? describeResolution(resolution, req.options) : "asked — answer in the thread"}</span>
+        </div>
+      );
+    }
     case "raw":
       return <pre className="raw">{item.body}</pre>;
   }

@@ -7,6 +7,12 @@
  * concatenate into the assistant's reply, tool calls become chips paired to
  * their result on `toolCallId`, everything else is dropped on purpose.
  *
+ * One *request* renders too: `session/request_permission` (fountain#940). The
+ * agent is blocked on it and a human has to answer, so it belongs inline in
+ * the transcript beside the tool it is about. Its resolution cannot mutate
+ * this block — log events are immutable — so it arrives separately as a
+ * `request` stage event and is paired on `request_id` (see `permissions.ts`).
+ *
  * Non-ACP runtimes (legacy stdout) are shown as plain text lines — good
  * enough for a preview; the full conversation view in Fountain does better.
  */
@@ -26,7 +32,31 @@ export type Block =
       startedAt: string | null;
       endedAt: string | null;
     }
+  | {
+      kind: "permission";
+      /** answer with POST /api/conversations/:id/requests/:requestId */
+      requestId: string;
+      /** the tool being asked about */
+      name: string;
+      summary: string;
+      /** exactly what the agent offered, in its order — never add to this */
+      options: PermissionOption[];
+      /** event timestamp: when the agent asked */
+      startedAt: string | null;
+    }
   | { kind: "raw"; body: string };
+
+/**
+ * One choice the agent offered. `kind` is ACP's own vocabulary —
+ * `allow_once`, `allow_always`, `reject_once`, `reject_always` — and it is
+ * advisory: it colours the button, it does not decide what is sent. Only
+ * `optionId` is ever sent back.
+ */
+export interface PermissionOption {
+  optionId: string;
+  name: string;
+  kind: string;
+}
 
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);
 
@@ -53,7 +83,9 @@ export function blocksForTurn(events: LogEvent[], runtime: string): Block[] {
         if (!line.trim()) continue;
         const update = updateOf(line);
         if (!update) {
-          if (!looksLikeJsonRpc(line)) out.push({ kind: "raw", body: line });
+          const ask = permissionOf(line);
+          if (ask) out.push({ ...ask, startedAt: ev.ts ?? null });
+          else if (!looksLikeJsonRpc(line)) out.push({ kind: "raw", body: line });
           continue;
         }
         switch (update.sessionUpdate) {
@@ -131,6 +163,55 @@ function updateOf(line: string): Json | null {
   if (!isObj(params)) return null;
   const update = params.update;
   return isObj(update) ? update : params;
+}
+
+/**
+ * A `session/request_permission` request line, as a block. Port of
+ * `Fountain.Runtimes.ACP.Blocks.permission_blocks/2`.
+ *
+ * This is a JSON-RPC *request*, not a notification: it carries an `id` the
+ * agent is blocked on, and that id — stringified, as the server stringifies
+ * it — is the `request_id` the answer route takes.
+ */
+function permissionOf(line: string): Omit<Extract<Block, { kind: "permission" }>, "startedAt"> | null {
+  let msg: unknown;
+  try {
+    msg = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (!isObj(msg) || msg.method !== "session/request_permission") return null;
+  if (typeof msg.id !== "string" && typeof msg.id !== "number") return null;
+  const params = isObj(msg.params) ? msg.params : {};
+  const call = isObj(params.toolCall) ? params.toolCall : {};
+  return {
+    kind: "permission",
+    requestId: String(msg.id),
+    name: toolName(call),
+    summary: toolSummary(call),
+    options: permissionOptions(params.options),
+  };
+}
+
+/**
+ * The agent's own option list, in its order.
+ *
+ * An option with no `optionId` is dropped rather than rendered: the id is the
+ * only thing an answer sends, and a button that cannot be answered with is
+ * worse than one that is not offered. Nothing is ever added to this list —
+ * synthesising an "allow" the agent did not offer is the failure the
+ * server-side fail-closed rule exists to prevent.
+ */
+function permissionOptions(raw: unknown): PermissionOption[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PermissionOption[] = [];
+  for (const o of raw) {
+    if (!isObj(o)) continue;
+    const optionId = str(o.optionId);
+    if (!optionId) continue;
+    out.push({ optionId, name: str(o.name) || optionId, kind: str(o.kind) || "" });
+  }
+  return out;
 }
 
 function looksLikeJsonRpc(line: string): boolean {

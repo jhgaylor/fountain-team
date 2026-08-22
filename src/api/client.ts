@@ -234,6 +234,24 @@ export class FountainClient {
     return URL.createObjectURL(await res.blob());
   }
 
+  /**
+   * Answer a permission request the agent is blocked on (fountain#940).
+   *
+   * `optionId` must be one of the `optionId` values that request's own block
+   * carried — an id the agent did not offer is refused with 422
+   * `unknown_option` rather than forwarded.
+   *
+   * First answer wins: another attached client, the server's timeout, or the
+   * turn ending may have resolved it already, and all of those are one 409
+   * `permission_request_resolved`. That is not an error to apologise for — the
+   * stream says how it actually ended.
+   */
+  answerRequest(conversationId: string, requestId: string, optionId: string): Promise<{ ok: boolean }> {
+    return this.json("POST", `/api/conversations/${conversationId}/requests/${encodeURIComponent(requestId)}`, {
+      option_id: optionId,
+    });
+  }
+
   markRead(conversationId: string): Promise<void> {
     return this.json<void>("POST", `/api/conversations/${conversationId}/read`);
   }
@@ -449,6 +467,14 @@ export function describeError(err: unknown): string {
         return "Vault not found.";
       case "not_found":
         return "Not found.";
+      case "permission_request_resolved":
+        return "That request was already resolved — the thread shows how.";
+      case "unknown_option":
+        return "That option is not one the agent offered.";
+      case "option_id_required":
+        return "Pick one of the options the agent offered.";
+      case "sprite_may_not_answer":
+        return "A teammate may not answer its own permission request.";
       case "team_comms_not_enabled":
         return "Giving teammates an email and phone is not enabled for this account.";
       case "team_comms_not_configured":

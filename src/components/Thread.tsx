@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { CommsStatus, LogEvent, Teammate, TreeNode, Turn } from "../api/types";
-import type { FountainClient } from "../api/client";
+import { describeError, type FountainClient } from "../api/client";
 import { blocksForTurn, type Block } from "../lib/acp";
 import { loadDraft, saveDraft } from "../lib/drafts";
 import { formatUsage } from "../lib/format";
@@ -24,6 +24,8 @@ import { ContactLine } from "./ContactLine";
 import { contactOffer } from "../lib/contact";
 import { Activity, type ActivityFocus } from "./Activity";
 import { groupBlocks, toolsLabel, duration, type FeedItem } from "../lib/feed";
+import { asks as asksFrom, resolutions as resolutionsFrom, type PermissionAsk, type PermissionResolution } from "../lib/permissions";
+import { PermissionCard } from "./PermissionCard";
 import { transcriptUrl } from "../lib/transcript";
 
 interface Props {
@@ -138,6 +140,29 @@ export function Thread({
     }
     return m;
   }, [events]);
+
+  // A permission request's two halves arrive on different events. The block is
+  // on the `acp` stream and carries a turn_id, so it lands in the map above;
+  // the `request` stage events do not carry one, so they are read from the
+  // whole conversation and paired to the block on request_id.
+  const askResolutions = useMemo(() => resolutionsFrom(events), [events]);
+  const askDetails = useMemo(() => asksFrom(events), [events]);
+
+  const answerRequest = useCallback(
+    async (requestId: string, optionId: string) => {
+      try {
+        await client.answerRequest(conv.id, requestId, optionId);
+      } catch (err) {
+        // Thrown on, not toasted: this is the answer to a question that is on
+        // screen, so it belongs on that card — and the card has to know the
+        // answer did not land, or it locks itself waiting for a stage event
+        // that is never coming. A 409 is "something else got there first",
+        // which the stream is about to say anyway.
+        throw new Error(describeError(err));
+      }
+    },
+    [client, conv.id],
+  );
 
   const { shown, hidden } = useMemo(() => windowTail(turns, visible), [turns, visible]);
 
@@ -606,6 +631,10 @@ export function Thread({
               runtime={conv.runtime}
               highlighted={highlight === turn.id}
               onOpenActivity={(index) => openActivityAt(turn.id, index)}
+              teammateName={teammate.name}
+              askResolutions={askResolutions}
+              askDetails={askDetails}
+              onAnswerRequest={answerRequest}
             />
           ))}
           {queued.map((q) => (
@@ -737,6 +766,10 @@ export function TurnView({
   runtime,
   highlighted,
   onOpenActivity,
+  teammateName = "They",
+  askResolutions,
+  askDetails,
+  onAnswerRequest,
 }: {
   client: FountainClient;
   conversationId: string;
@@ -746,6 +779,14 @@ export function TurnView({
   highlighted: boolean;
   /** the chat shows a tool run as a status line; clicking it opens the feed at that run */
   onOpenActivity?: (itemIndex: number) => void;
+  /** who is asking, for the permission card's "<name> wants to run …" */
+  teammateName?: string;
+  /** request_id → how it ended; from the conversation's `request` stage events */
+  askResolutions?: ReadonlyMap<string, PermissionResolution>;
+  /** request_id → the ask, for its timeout */
+  askDetails?: ReadonlyMap<string, PermissionAsk>;
+  /** absent in a read-only view (History): the card renders without buttons */
+  onAnswerRequest?: (requestId: string, optionId: string) => Promise<void>;
 }) {
   const blocks = useMemo(() => blocksForTurn(events, runtime), [events, runtime]);
   const items = useMemo(() => groupBlocks(blocks), [blocks]);
@@ -764,6 +805,20 @@ export function TurnView({
         <div className="meta">{formatTime(turn.inserted_at)}</div>
       </div>
       {items.map((item, i) => {
+        if (item.kind === "permission") {
+          const req = item.request;
+          return (
+            <PermissionCard
+              key={i}
+              request={req}
+              name={teammateName}
+              resolution={askResolutions?.get(req.requestId) ?? null}
+              timeoutMs={askDetails?.get(req.requestId)?.timeoutMs ?? null}
+              live={inFlight && onAnswerRequest !== undefined}
+              onAnswer={(optionId) => onAnswerRequest?.(req.requestId, optionId) ?? Promise.resolve()}
+            />
+          );
+        }
         if (item.kind !== "tools") return <BlockView key={i} block={item} stamp={i === lastText ? "show" : "hover"} />;
         const { verb, what, running } = toolsLabel(item.tools);
         const single = item.tools.length === 1 ? item.tools[0]! : null;
@@ -878,5 +933,10 @@ function BlockView({ block, stamp = "hover" }: { block: Exclude<FeedItem, { kind
       );
     case "raw":
       return <pre className="raw">{block.body}</pre>;
+    // A permission request is not a bubble — TurnView renders it as a card
+    // before it reaches here, because it needs the conversation's stage
+    // events to know how it ended.
+    case "permission":
+      return null;
   }
 }

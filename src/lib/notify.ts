@@ -39,6 +39,28 @@ export function shouldNotify(d: NotifyDecision): boolean {
   return !d.isOpen || d.hidden;
 }
 
+/**
+ * A teammate is blocked on a permission request (fountain#940).
+ *
+ * Distinct from a reply because it is not news, it is a question: nothing
+ * moves until it is answered, and the server denies it if nobody does. Same
+ * per-conversation tag, so it replaces rather than stacks.
+ */
+export function showRequestNotification(opts: {
+  name: string;
+  /** the tool being asked about, when the ask event named it */
+  tool: string | null;
+  conversationId: string;
+  onClick: () => void;
+}): void {
+  showReplyNotification({
+    name: opts.name,
+    body: opts.tool ? `wants permission to run ${opts.tool}` : "wants your permission to continue",
+    conversationId: opts.conversationId,
+    onClick: opts.onClick,
+  });
+}
+
 export function showReplyNotification(opts: {
   name: string;
   body: string;

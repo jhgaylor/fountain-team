@@ -466,3 +466,34 @@ button.added:hover { color: var(--danger); border-color: color-mix(in srgb, var(
 .modal.contact .consent { font-size: 13.5px; line-height: 1.45; color: var(--text); margin: 0; }
 .modal.contact .consent a { color: var(--brand); }
 .contact-paused { color: var(--warn); }
+
+/* a teammate blocked on a permission request (fountain#940) */
+.ask { align-self: flex-start; max-width: min(560px, 80%); margin: 2px 8px; border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ask.resolved { border-color: var(--border); background: var(--bg-1); }
+.ask.resolved.allow { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.ask.resolved.reject { border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.ask-head { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; line-height: 1.45; }
+.ask-glyph { flex-shrink: 0; }
+.ask-what { min-width: 0; }
+.ask-what .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; margin-left: 2px; }
+.ask-what .tool-summary { display: block; color: var(--text-2); font-size: 12.5px; overflow-wrap: anywhere; }
+.ask-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-option { font-size: 13px; padding: 5px 12px; }
+.ask-option.allow { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+.ask-option.allow:hover:not(:disabled) { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.ask-option.reject { border-color: color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); }
+.ask-option.reject:hover:not(:disabled) { background: var(--danger-bg); }
+.ask-outcome { margin: 0; }
+
+/* the same request in the activity feed — a record, not a control */
+.activity-ask { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 4px 6px; font-size: 13px; border-left: 2px solid color-mix(in srgb, var(--warn) 55%, transparent); }
+.activity-ask.resolved { border-left-color: var(--border); }
+.activity-ask .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.activity-ask .tool-summary { color: var(--text-2); }
+
+/* "waiting on you" in the roster */
+.presence.waiting { background: var(--warn); animation: pulse 1.2s infinite; }
+.roster-item.waiting .roster-row { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.preview.waiting { color: var(--warn); }
+.unread-dot.waiting { background: var(--warn); }
+.ask-option.chosen { background: var(--bg-2); }
