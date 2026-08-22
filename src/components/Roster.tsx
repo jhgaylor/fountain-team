@@ -52,6 +52,8 @@ interface Props {
   connected: boolean;
   /** whether teammates can be given an email + phone here (null: not offered) */
   comms: CommsStatus | null;
+  /** conversations blocked on a permission request — the row says so and sorts nothing else */
+  waitingConvIds: ReadonlySet<string>;
 }
 
 interface MenuState {
@@ -83,6 +85,7 @@ export function Roster({
   onReport,
   connected,
   comms,
+  waitingConvIds,
 }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [teamMenu, setTeamMenu] = useState<{ x: number; y: number } | null>(null);
@@ -158,6 +161,7 @@ export function Roster({
               pinned={prefs.pinned.includes(t.agent_id)}
               muted={prefs.muted.includes(t.agent_id)}
               markedUnread={prefs.unread.includes(t.agent_id)}
+              waiting={waitingConvIds.has(t.conversation.id)}
               onSelect={() => onSelect(t.agent_id)}
               onMenu={(x, y) => openMenu(t.agent_id, x, y)}
             />
@@ -207,6 +211,7 @@ function RosterRow({
   pinned,
   muted,
   markedUnread,
+  waiting,
   onSelect,
   onMenu,
 }: {
@@ -216,6 +221,8 @@ function RosterRow({
   pinned: boolean;
   muted: boolean;
   markedUnread: boolean;
+  /** blocked on a permission request: it needs an answer, not just a read */
+  waiting: boolean;
   onSelect: () => void;
   onMenu: (x: number, y: number) => void;
 }) {
@@ -225,13 +232,13 @@ function RosterRow({
     onMenu(e.clientX, e.clientY);
   };
   return (
-    <li className="roster-item" onContextMenu={onContext}>
+    <li className={`roster-item ${waiting ? "waiting" : ""}`} onContextMenu={onContext}>
       <button className={`roster-row ${selected ? "selected" : ""}`} onClick={onSelect}>
         <div className="avatar-wrap">
           <Avatar agent={t.agent} name={t.name} client={client} />
           <span
-            className={`presence ${t.presence.state === "starting" && t.conversation.sandbox?.status === "ready" ? "online" : t.presence.state}`}
-            title={t.presence.state === "starting" && t.conversation.sandbox?.status === "ready" ? "ready" : t.presence.label}
+            className={`presence ${waiting ? "waiting" : t.presence.state === "starting" && t.conversation.sandbox?.status === "ready" ? "online" : t.presence.state}`}
+            title={waiting ? "Waiting on you" : t.presence.state === "starting" && t.conversation.sandbox?.status === "ready" ? "ready" : t.presence.label}
           />
         </div>
         <div className="roster-text">
@@ -254,10 +261,10 @@ function RosterRow({
             </span>
           </div>
           <div className="roster-line">
-            <span className={`preview ${unread ? "unread" : ""}`}>
-              <PreviewText t={t} />
+            <span className={`preview ${unread || waiting ? "unread" : ""} ${waiting ? "waiting" : ""}`}>
+              {waiting ? "🔐 Waiting on you" : <PreviewText t={t} />}
             </span>
-            {unread && <span className="unread-dot" title="Unread" />}
+            {(unread || waiting) && <span className={`unread-dot ${waiting ? "waiting" : ""}`} title={waiting ? "Waiting on you" : "Unread"} />}
           </div>
         </div>
       </button>

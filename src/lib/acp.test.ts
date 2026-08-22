@@ -108,6 +108,92 @@ describe("blocksForTurn", () => {
     expect(blocksForTurn(events, "claude")).toEqual([{ kind: "raw", body: "not json at all" }]);
   });
 
+  test("a permission request renders as a card block, with the agent's options in its order", () => {
+    const ask: LogEvent = {
+      id: 9,
+      kind: "output",
+      stream: "acp",
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 41,
+        method: "session/request_permission",
+        params: {
+          sessionId: "s",
+          toolCall: { toolCallId: "c9", title: "Bash", kind: "execute", rawInput: { command: "rm -rf build" } },
+          options: [
+            { optionId: "allow", name: "Allow once", kind: "allow_once" },
+            { optionId: "always", name: "Always allow Bash", kind: "allow_always" },
+            { optionId: "no", name: "Reject", kind: "reject_once" },
+          ],
+        },
+      }),
+      stage: null,
+      state: null,
+      turn_id: "t",
+      ts: "2026-08-22T00:00:00Z",
+    };
+    expect(blocksForTurn([ask], "claude")).toEqual([
+      {
+        kind: "permission",
+        // the JSON-RPC id, stringified as the server stringifies it
+        requestId: "41",
+        name: "Bash",
+        summary: "command=rm -rf build",
+        options: [
+          { optionId: "allow", name: "Allow once", kind: "allow_once" },
+          { optionId: "always", name: "Always allow Bash", kind: "allow_always" },
+          { optionId: "no", name: "Reject", kind: "reject_once" },
+        ],
+        startedAt: "2026-08-22T00:00:00Z",
+      },
+    ]);
+  });
+
+  test("an option with no optionId is dropped — it could not be answered with", () => {
+    const ask: LogEvent = {
+      id: 10,
+      kind: "output",
+      stream: "acp",
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "req-1",
+        method: "session/request_permission",
+        params: { options: [{ name: "Allow" }, { optionId: "no", kind: "reject_once" }, "nonsense"] },
+      }),
+      stage: null,
+      state: null,
+      turn_id: "t",
+      ts: "2026-08-22T00:00:00Z",
+    };
+    const blocks = blocksForTurn([ask], "claude");
+    expect(blocks).toEqual([
+      {
+        kind: "permission",
+        requestId: "req-1",
+        // no toolCall at all: named rather than blank
+        name: "tool",
+        summary: "",
+        // `name` falls back to the id so a button is never unlabelled
+        options: [{ optionId: "no", name: "no", kind: "reject_once" }],
+        startedAt: "2026-08-22T00:00:00Z",
+      },
+    ]);
+  });
+
+  test("a request the agent should never send is still dropped, not shown as raw", () => {
+    const other: LogEvent = {
+      id: 11,
+      kind: "output",
+      stream: "acp",
+      data: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "fs/read_text_file", params: {} }),
+      stage: null,
+      state: null,
+      turn_id: "t",
+      ts: "2026-08-22T00:00:00Z",
+    };
+    expect(blocksForTurn([other], "claude")).toEqual([]);
+  });
+
   test("legacy stdout of a non-ACP runtime shows as text; stage events are ignored", () => {
     const events: LogEvent[] = [
       { ...chunk("", 1), stream: "stdout", data: "plain gemini line" },

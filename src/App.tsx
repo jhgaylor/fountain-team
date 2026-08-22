@@ -20,7 +20,8 @@ import { ContactDialog } from "./components/ContactDialog";
 import { contactOffer } from "./lib/contact";
 import { buildReportContext } from "./lib/report";
 import { releaseImages, type OutgoingImage } from "./lib/images";
-import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, type NotifyPermission } from "./lib/notify";
+import { notifyPermission, requestNotifyPermission, shouldNotify, showReplyNotification, showRequestNotification, type NotifyPermission } from "./lib/notify";
+import { askFrom, openAsk, resolutionFrom, type PermissionAsk } from "./lib/permissions";
 import { loadPrefs, savePrefs, sortPinnedFirst, toggleIn, without, type Prefs } from "./lib/prefs";
 import { drain, enqueue, newQueuedId, removeQueued, withoutConversation, type QueuedMessage } from "./lib/queue";
 import { loadTranscriptBase, transcriptUrl } from "./lib/transcript";
@@ -128,6 +129,12 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
   const [focusTurnId, setFocusTurnId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [events, setEvents] = useState<LogEvent[]>([]);
+  // Conversations with a permission request open, by conversation id. Learned
+  // from the `request` stage events on the team stream, so it covers rows the
+  // thread is not showing — the whole point of a "waiting on you" roster
+  // treatment. It only knows about asks that arrived while this page was up;
+  // the open thread is covered separately, from its own loaded events.
+  const [openAsks, setOpenAsks] = useState<ReadonlyMap<string, PermissionAsk>>(() => new Map());
   const [threadLoading, setThreadLoading] = useState(false);
   const [loadedConvId, setLoadedConvId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -265,6 +272,20 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     };
   }, [client, selectedConvId, toast]);
 
+  // Which conversations are waiting on an answer. The live map covers rows the
+  // thread is not showing; the open thread is re-derived from its own events,
+  // which are loaded in full — so a reload with the card on screen still shows
+  // the row as waiting, where the live map alone would have forgotten.
+  const selectedAsk = useMemo(() => (loadedConvId === selectedConvId ? openAsk(events) : null), [events, loadedConvId, selectedConvId]);
+  const waitingConvIds = useMemo(() => {
+    const ids = new Set(openAsks.keys());
+    if (selectedConvId && loadedConvId === selectedConvId) {
+      if (selectedAsk) ids.add(selectedConvId);
+      else ids.delete(selectedConvId);
+    }
+    return ids;
+  }, [openAsks, selectedAsk, selectedConvId, loadedConvId]);
+
   // On a phone, the thread has no room for the roster: only one shows.
   const unreadCount = team.filter((t) => t.agent_id !== selectedId && (t.unread || prefs.unread.includes(t.agent_id))).length;
   useEffect(() => {
@@ -351,6 +372,36 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
     [select],
   );
 
+  /**
+   * A teammate is blocked on a permission request. Notified like a reply, and
+   * for the same reason: it is news you cannot see if you are not looking at
+   * that thread — except that here nothing moves until you answer, and the
+   * server denies it if nobody does.
+   */
+  const notifyAsk = useCallback(
+    (conversationId: string, ask: PermissionAsk) => {
+      const t = teamRef.current.find((x) => x.conversation.id === conversationId);
+      const p = prefsRef.current;
+      if (
+        !shouldNotify({
+          enabled: p.notify,
+          permission: notifyPermission(),
+          muted: t ? p.muted.includes(t.agent_id) : false,
+          isOpen: conversationId === selectedConvRef.current,
+          hidden: document.hidden,
+        })
+      )
+        return;
+      showRequestNotification({
+        name: t?.name ?? "Teammate",
+        tool: ask.tool,
+        conversationId,
+        onClick: () => t && select(t.agent_id),
+      });
+    },
+    [select],
+  );
+
   const refreshSchedules = useCallback(async () => {
     try {
       setSchedules(await client.listSchedules());
@@ -424,6 +475,35 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
           }
         }
       }
+      // A permission request, on any row — including one the thread is not
+      // showing. Tracked here rather than in Thread because the roster has to
+      // say "waiting on you" for a teammate you are not looking at.
+      if (ev.kind === "stage" && ev.stage === "request") {
+        const ask = askFrom(ev);
+        if (ask) {
+          setOpenAsks((m) => new Map(m).set(ev.conversation_id, ask));
+          notifyAsk(ev.conversation_id, ask);
+        } else if (resolutionFrom(ev)) {
+          setOpenAsks((m) => {
+            if (!m.has(ev.conversation_id)) return m;
+            const next = new Map(m);
+            next.delete(ev.conversation_id);
+            return next;
+          });
+        }
+      }
+      // A request cannot outlive its turn — the server resolves whatever is
+      // held before the peer goes away. Clearing on the turn's end too means a
+      // `done` this client was offline for cannot strand a row on "waiting on
+      // you" until the next reload.
+      if (ev.kind === "stage" && ev.stage === "turn" && ev.state !== "started") {
+        setOpenAsks((m) => {
+          if (!m.has(ev.conversation_id)) return m;
+          const next = new Map(m);
+          next.delete(ev.conversation_id);
+          return next;
+        });
+      }
       if (ev.kind === "stage") {
         if (ev.stage === "turn" && ev.state !== "started" && ev.agent_id) {
           const agentId = ev.agent_id;
@@ -459,7 +539,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
       stopped = true;
       ctrl.abort();
     };
-  }, [client, refreshTeam, refreshSchedules, scheduleRefresh, flush, notifyReply]);
+  }, [client, refreshTeam, refreshSchedules, scheduleRefresh, flush, notifyReply, notifyAsk]);
 
   // ── routines ──────────────────────────────────────────────────────────────
 
@@ -924,6 +1004,7 @@ function Team({ settings, onSettings, onSignOut }: { settings: Settings; email: 
         onReport={() => setReporting(selectedId ?? null)}
         connected={connected}
         comms={comms}
+        waitingConvIds={waitingConvIds}
       />
       {page === "runners" ? (
         <Runners client={client} onBack={() => select(null)} toast={toast} fountainUrl={client.baseUrl} refreshKey={teamVersion} />

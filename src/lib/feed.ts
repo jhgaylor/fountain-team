@@ -7,11 +7,13 @@
 import type { Block } from "./acp";
 
 export type ToolBlock = Extract<Block, { kind: "tool" }>;
+export type PermissionBlock = Extract<Block, { kind: "permission" }>;
 
 export type FeedItem =
   | { kind: "text"; body: string; startedAt: string | null; endedAt: string | null }
   | { kind: "thinking"; body: string; startedAt: string | null; endedAt: string | null }
   | { kind: "tools"; tools: ToolBlock[] }
+  | { kind: "permission"; request: PermissionBlock }
   | { kind: "raw"; body: string };
 
 export function groupBlocks(blocks: Block[]): FeedItem[] {
@@ -27,6 +29,11 @@ export function groupBlocks(blocks: Block[]): FeedItem[] {
     } else if (b.kind === "thinking") {
       if (!b.body.trim()) continue;
       out.push({ kind: "thinking", body: b.body, startedAt: b.startedAt, endedAt: b.endedAt });
+    } else if (b.kind === "permission") {
+      // Never folded into the tools row above it: the agent is blocked on this
+      // and it needs an answer, so it stays at the top level where a collapsed
+      // row cannot hide it.
+      out.push({ kind: "permission", request: b });
     } else {
       out.push({ kind: "raw", body: b.body });
     }

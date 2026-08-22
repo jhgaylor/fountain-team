@@ -5,6 +5,7 @@ import type { HistoryConversation, LogEvent, Teammate, Turn } from "../api/types
 import { formatUsage } from "../lib/format";
 import { formatTime } from "./Roster";
 import { TurnView } from "./Thread";
+import { resolutions as resolutionsFrom } from "../lib/permissions";
 import { transcriptUrl } from "../lib/transcript";
 
 const THREAD_STREAMS = ["acp", "stdout", "stage"];
@@ -189,13 +190,26 @@ function ReadOnlyThread({ client, conversation }: { client: FountainClient; conv
     return m;
   }, [events]);
 
+  // Every permission request in a retired conversation is over; passing the
+  // resolutions is what lets each card say how, rather than only that it did.
+  const askResolutions = useMemo(() => resolutionsFrom(events), [events]);
+
   if (error) return <div className="error">{error}</div>;
   if (turns === null) return <div className="muted">Loading…</div>;
   return (
     <div className="messages readonly">
       {turns.length === 0 && <div className="muted">Nothing was said in this conversation.</div>}
       {turns.map((t) => (
-        <TurnView key={t.id} client={client} conversationId={conversation.id} turn={t} events={byTurn.get(t.id) ?? []} runtime={conversation.runtime} highlighted={false} />
+        <TurnView
+          key={t.id}
+          client={client}
+          conversationId={conversation.id}
+          turn={t}
+          events={byTurn.get(t.id) ?? []}
+          runtime={conversation.runtime}
+          highlighted={false}
+          askResolutions={askResolutions}
+        />
       ))}
     </div>
   );
